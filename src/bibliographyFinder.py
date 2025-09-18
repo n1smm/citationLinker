@@ -18,7 +18,7 @@ def find_starting_lines_authors(line_info):
 
     surname = tokens[0]
 
-    if not (surname and surname[0].isupper() and re.match(r'^[\w\-]+$', surname, re.UNICODE)):
+    if not (surname and surname[0].isupper() and re.match(r"^[\w\-']+$", surname, re.UNICODE)):
         return False
     token_count += 1
 

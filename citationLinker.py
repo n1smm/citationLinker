@@ -10,7 +10,12 @@ import  textScreener
 from    bibliographyFinder import extract_authors_from_pdf
 from    configLoad import config, config_load
 
-
+# poisce priblizno ujemanje, za preposta sklanjanja Frank Franka
+def close_match(ref, author):
+    if len(ref) > 2 and len(author) > 2:
+        return ref.lower()[:-1] in author.lower()
+    else:
+        return False
 
 # poveze literaturo z navajanji v tekstu in doda goto povezave (hyperlinke)
 def reference_connector(authors_info, references_info, doc):
@@ -22,10 +27,10 @@ def reference_connector(authors_info, references_info, doc):
             # potem poisce ce se ujema tudi avtor
             if author["year"] and ref["year"] in author["year"]:
                 if (
-                        ref["surname"] in author["surname"]
-                        or ref["name"] in author["surname"]
-                        or ref["surname"] in author["name"]
-                        or ref["name"] in author["name"]
+                        close_match(ref["surname"], author["surname"])
+                        or close_match(ref["name"], author["surname"])
+                        or close_match(ref["surname"], author["name"])
+                        or close_match(ref["name"], author["name"])
                     ):
                     # vzame vse pozicije, kjer se nahaja ujemanje (npr. prelom strani sta 2 poziciji)
                     curr_page = int(ref["page"])
@@ -122,14 +127,14 @@ def main():
     doc = pymupdf.open(file_name)
     authors_page = find_delimiting_page(authors_delimiter, doc)
     authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-    # print_lines_info(authors_info)
+    print_lines_info(authors_info)
     references_info = textScreener.screen_text(doc, authors_page, authors_delimiter, authors_info)
     reference_connector(authors_info, references_info, doc)
 
     #naredi nov file z narejenimi povezavami, orginal ostane isti
     output_dir = "output"
     os.makedirs(output_dir, exist_ok=True)
-    base, ext = os.path.splitext(file_name)
+    base, ext = os.path.splitext(os.path.basename(file_name))
     output_filename = base + "_linked" + ext
     output_path = os.path.join(output_dir, output_filename)
     doc.save(output_path)

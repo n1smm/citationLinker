@@ -109,16 +109,18 @@ Moretti (2011: 13–20, 36–37)<br>
 (Trocki 2008:7–8; Davidson 2019a:24–28)<br>
 (Kermauner 1970: 93; 2013: 219)<br>
 (prim. Kermauner 1968a: 12; 1970: 6–7; 1971: 140–141, 171–172, 221–222; Svetina 2013: 510–545).<br>
+(»nach Auschwitz ein Gedicht zu schreiben, ist barbarisch«; Adorno 1969: 31)<br>
 (nav. d.: 17–22, 49–56).<br>
-
 ### opombe:
 
 ko je navajanih več del hkrati morajo biti ta razdeljena z ;<br>
 če je navajanje v oklepajih (tekst ... priimek [leto] ... ) mora biti priimek takoj pred letom,<br>
 to se pravi nebi delovalo (tekst ... priimek idr. [leto] ...)<br>
 Če priimek ni zapisan z veliko začetnico, ga skript ne bo prepoznal<br>
+Skrit ne deluje če je priimek na prelomu stani to se pravi je vmes - (primer Wol-fgang Iser (1988))<br>
+skrip ne bo zaznal če je priimek sklanjan <br>
 Če se navedeno leto ali priimek razlikuje od tega kako je zapisano v litaraturi ga skrip ne bo prepoznal<br>
-
+navajanje brez oklepajev ,primer: glej Frank 2002: 8–40 in 219–259<br>
 
 ### literatura
 
