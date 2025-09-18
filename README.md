@@ -9,7 +9,7 @@ Deluje na dokumentih tipa PDF in z načinom citiranja APA<br>
 ```bash
 - Python 3.8–3.12 (priporočeno 3.10–3.12). testirano z 3.12.3
 - requirements.txt z: pymupdf
-- V isti mapi: citationLinker.py, .config, lokalni moduli v src (textScreener.py, bibliographyFinder.py, configLoad.py, inParenthesisExtractor.py).
+- V isti mapi: citationLinker.py, .config, lokalni moduli v src (textScreener.py, bibliographyFinder.py, configLoad.py, inParenthesisExtractor.py, referenceConnector.py).
 ```
 
 

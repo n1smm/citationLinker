@@ -18,7 +18,7 @@ def config_color():
     else:
         config['STROKE'] = colors[3]
     
-#load moznosti iz .config filea v config strukturo
+#load moznosti iz .config file-a v config strukturo
 def config_load():
     with open('./.config') as file:
         for line in file:
@@ -28,3 +28,7 @@ def config_load():
     config_color()
     if 'SPECIAL_CASE' not in config:
         config['SPECIAL_CASE'] = ['nav. d.']
+    if 'ANNOT_TYPE' not in config:
+        config['ANNOT_TYPE'] = ['underline']
+    if  'BIBLIOGRAPHY_DELIMITER' not in config:
+        config['BIBLIOGRAPHY_DELIMITER'] = ['Literatura']
