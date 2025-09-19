@@ -73,7 +73,7 @@ def main():
     authors_page = find_delimiting_page(authors_delimiter, doc)
     authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
     print_lines_info(authors_info)
-    references_info = textScreener.screen_text(doc, authors_page, authors_delimiter, authors_info)
+    references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
     reference_connector(authors_info, references_info, doc)
 
     #naredi nov file z narejenimi povezavami, orginal ostane isti

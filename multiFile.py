@@ -37,16 +37,18 @@ def main():
     input_dir = "input"
     authors_delimiters = config['BIBLIOGRAPHY_DELIMITER']
     for file in os.listdir(input_dir):
+        print("#####################")
         file_name = os.path.join(input_dir, file)
         doc = pymupdf.open(file_name)
         authors_page, authors_delimiter = find_delimiting_page(authors_delimiters, doc)
-        if authors_page == -1 or authors_delimiter == 1:
+        print("authors delimiter: " , authors_delimiter)
+        if authors_page == -1 or authors_delimiter == -1:
             print("nepravilen BIBLIOGRAPHY_DELIMITER za dokument:", file_name)
             return -1
 
         authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
         # print_lines_info(authors_info)
-        references_info = textScreener.screen_text(doc, authors_page, authors_delimiter, authors_info)
+        references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
         reference_connector(authors_info, references_info, doc)
 
         #naredi nov file z narejenimi povezavami, orginal ostane isti
@@ -57,8 +59,9 @@ def main():
         output_path = os.path.join(output_dir, output_filename)
         doc.save(output_path)
         doc.close()
-        print("#####################")
         print("dokument je uspesno povezan, najde se v " + output_path)
+        print("#####################")
+
 
 if __name__ == "__main__":
     main()

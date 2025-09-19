@@ -108,7 +108,7 @@ def print_temp_ref_text(temp_refs):
 # precesa celoten tekst in izbere dele k bi lahko bili reference,
 # zakljuci ko pride do virov
 # TODO precesaj se zadnjo stran pred literaturo
-def screen_text(doc, page_idx, delimiter, authors_info):
+def screen_text(doc, page_idx, delimiter):
 
     references_info = []
 
@@ -119,6 +119,14 @@ def screen_text(doc, page_idx, delimiter, authors_info):
         add_info_to_references(temp_refs, page, i, references_info)
         if i == page_idx:
             break
+    #sprocesiraj se zadnjo stran do literature
+    page = doc[page_idx]
+    text = page.get_text()
+    delimiter_index = text.find(delimiter)
+    if delimiter_index != -1:
+        text = text[:delimiter_index]
+    temp_refs = check_in_parentheses(text) #inParenthesesExtractor.py
+    add_info_to_references(temp_refs, page, page_idx, references_info)
     # print_references_info(references_info)
     return references_info
 
