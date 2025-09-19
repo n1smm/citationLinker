@@ -7,7 +7,7 @@ def config_color():
             (0, 0, 0),        # Black
             (1, 1, 1),        # White
             (0.5, 0.5, 0.5),  # Grey
-            (0, 0, 1),        # Blue
+            (0.7, 0.85, 1),        # Blue
             (1, 0, 0),        # Red
             ]
     color_names = ['black', 'white', 'gray', 'blue', 'red']
