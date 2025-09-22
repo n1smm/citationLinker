@@ -27,7 +27,7 @@ def split_info(ref, author_token, page_idx, page, last_ref):
     year_search_pattern = re.compile(r'(?<!\d)(\d{4}[a-zA-Z]?)(?!\d)')
     year_matches = year_search_pattern.findall(author_token)
     if not year_matches:
-        print("sth wrong with finding year in :", author_token)
+        # print("sth wrong with finding year in :", author_token)
         return None
     tokens = re.split(r'[\s.,;:()\[\]{}!?]+', author_token)
     tokens = [t for t in tokens if t]
@@ -47,14 +47,14 @@ def split_info(ref, author_token, page_idx, page, last_ref):
     if not name and not surname and year_idx == 0 and not ref["outside_name"]:
         if last_ref:
             surname =  last_ref["surname"]
-        else:
-            print("sth wrong when adding prev surname to this token: ", author_token)
+        # else:
+            # print("sth wrong when adding prev surname to this token: ", author_token)
 
 
     #iskanje tocne pozicije
     position = page.search_for(author_token, quads=False)
     if not position:
-        print("no position found for ", author_token, ", page: ", page_idx)
+        # print("no position found for ", author_token, ", page: ", page_idx)
         return None
 
 

@@ -9,8 +9,9 @@ def config_color():
             (0.5, 0.5, 0.5),  # Grey
             (0.7, 0.85, 1),        # Blue
             (1, 0, 0),        # Red
+            (0, 0, 1),        # dark_blue
             ]
-    color_names = ['black', 'white', 'gray', 'blue', 'red']
+    color_names = ['black', 'white', 'gray', 'blue', 'red', 'dark_blue']
     color = config['COLOR'][0].lower()
     if color in color_names:
         idx = color_names.index(color)
@@ -23,8 +24,18 @@ def config_load():
     with open('./.config') as file:
         for line in file:
             if '=' in line and not line.strip().startswith('#'):
-                key, value = line.strip().split('=', 1)
-                config[key] = [item.strip().strip('"') for item in value.split(',')]
+                if "ARTICLE_BREAKS" in line:
+                    key, value = line.strip().split('=', 1)
+                    tuples = []
+                    items = value.split(',')
+                    for item in items:
+                        item = item.strip().replace('"', '')
+                        numbers = tuple(map(int, item.split(':')))
+                        tuples.append(numbers)
+                    config[key] = {i: t for i, t in enumerate(tuples)}
+                else:
+                    key, value = line.strip().split('=', 1)
+                    config[key] = [item.strip().strip('"') for item in value.split(',')]
     config_color()
     if 'SPECIAL_CASE' not in config:
         config['SPECIAL_CASE'] = ['nav. d.']
@@ -32,3 +43,5 @@ def config_load():
         config['ANNOT_TYPE'] = ['underline']
     if  'BIBLIOGRAPHY_DELIMITER' not in config:
         config['BIBLIOGRAPHY_DELIMITER'] = ['Literatura']
+    print("config: ")
+    print(config)

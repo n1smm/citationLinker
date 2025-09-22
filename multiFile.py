@@ -39,6 +39,7 @@ def main():
     for file in os.listdir(input_dir):
         print("#####################")
         file_name = os.path.join(input_dir, file)
+        print("file name: ", file_name)
         doc = pymupdf.open(file_name)
         authors_page, authors_delimiter = find_delimiting_page(authors_delimiters, doc)
         print("authors delimiter: " , authors_delimiter)
