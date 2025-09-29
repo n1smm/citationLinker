@@ -11,6 +11,8 @@ from    bibliographyFinder import extract_authors_from_pdf
 from    configLoad import config, config_load
 from    referenceConnector import reference_connector
 
+import  pdb;
+
 # poisce priblizno ujemanje, za preposta sklanjanja Frank Franka
                     
 
@@ -63,7 +65,7 @@ def args_parser():
     # - text
     # - position
     # - page
-#uporaba: pdfReader.py --help
+#uporaba: citationLinker.py --help
 def main():
     config_load()
     args = args_parser()
@@ -71,10 +73,11 @@ def main():
     authors_delimiter = args.bibliography_delimiter
     doc = pymupdf.open(file_name)
     authors_page = find_delimiting_page(authors_delimiter, doc)
+    # pdb.set_trace()
     authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
     print_lines_info(authors_info)
     references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
-    reference_connector(authors_info, references_info, doc)
+    refs_found = reference_connector(authors_info, references_info, doc)
 
     #naredi nov file z narejenimi povezavami, orginal ostane isti
     output_dir = "output"
@@ -84,6 +87,7 @@ def main():
     output_path = os.path.join(output_dir, output_filename)
     doc.save(output_path)
     doc.close()
+    print("num refs found: ", refs_found)
     print("#####################")
     print("dokument je uspesno povezan, najde se v " + output_path)
 

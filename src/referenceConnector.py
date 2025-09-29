@@ -6,7 +6,7 @@ from    configLoad import config
 # ali razliki v velikih zacetnicah
 def close_match(ref, author):
     if len(ref) > 2 and len(author) > 2:
-        return ref.lower()[:-1] in author.lower()
+        return ref.lower()[:-2] in author.lower()
     else:
         return False
 
@@ -32,9 +32,14 @@ def extract_year_annot(word, word_rect, rect):
     new_rect = pymupdf.Rect(new_x0, word_rect.y0, new_x1, word_rect.y1)
     return new_rect
 
+# povezi priimek in ime v en string (za dvojne priimke)
+def uniteSurnameName(surname, name):
+    return (surname + " " + name)
+
 # poveze literaturo z navajanji v tekstu in doda goto povezave (hyperlinke)
 def reference_connector(authors_info, references_info, doc):
     last_link = None
+    num_ref_found = 0
     for ref  in references_info:
         for author in authors_info:
             
@@ -46,7 +51,16 @@ def reference_connector(authors_info, references_info, doc):
                         or close_match(ref["name"], author["surname"])
                         or close_match(ref["surname"], author["name"])
                         or close_match(ref["name"], author["name"])
+                        or close_match(
+                            uniteSurnameName(ref["surname"], ref["name"]),
+                            author["surname"])
+                        or close_match(
+                            uniteSurnameName(ref["surname"], ref["name"]),
+                            author["name"])
+
+
                     ):
+                    num_ref_found += 1
                     # vzame vse pozicije, kjer se nahaja ujemanje 
                     # (npr. prelom strani sta 2 poziciji)
                     curr_page = int(ref["page"])
@@ -86,6 +100,7 @@ def reference_connector(authors_info, references_info, doc):
         if ref["surname"] == "special_case" and last_link:
             ref_rects = (ref["position"] if isinstance(ref["position"], list)
                              else [ref["position"]])
+            num_ref_found += 1
             curr_page = int(ref["page"])
             page = doc[curr_page]
             for rect in ref_rects:
@@ -102,3 +117,4 @@ def reference_connector(authors_info, references_info, doc):
                     annot = page.add_highlight_annot(rect)
                 annot.set_colors({"stroke":config['STROKE']})
                 annot.update()
+    return (num_ref_found)

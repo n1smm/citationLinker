@@ -38,8 +38,12 @@ def split_info(ref, author_token, page_idx, page, last_ref):
     name = ""
     if tokens[year_idx -1] and tokens[year_idx -1][0].isupper():
         surname = tokens[year_idx -1]
-    if year_idx >= 2 and tokens[year_idx - 2] and tokens[year_idx - 2][0].isupper():
-        name = tokens[year_idx - 2]
+    for i in range(year_idx - 2, max(year_idx - 5, -1), -1):
+        if tokens[i][0].isupper() and tokens[i] != surname:
+            name = tokens[i]
+            break
+    # if year_idx >= 2 and tokens[year_idx - 2] and tokens[year_idx - 2][0].isupper():
+    #     name = tokens[year_idx - 2]
 
     # ce ni imena/priimka in je prvi token leto, 
     # ter ni navajanja zunaj oklepaja vzami iz prejsnjega priimek ali ime
@@ -78,7 +82,7 @@ def add_info_to_references(temp_refs, page, page_idx, references_info):
         author_tokens = []
         #mozno da sta dva avtorja v oklepaju, razdeli v tokne
         if not ref["outside_name"]:
-            author_tokens = text.split(";")
+            author_tokens = re.split(r'[;,]', text)
         else:
             author_tokens = [text]
         #vnasanje podrobnejsih informacij v references_info iz toknov

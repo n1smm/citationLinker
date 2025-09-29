@@ -1,11 +1,14 @@
 import  pymupdf
 import  re
 
+import  pdb
+
 
 # ce je vrstica z avtorjem_ico izbere potrebne podatke (ime, priimek, leto)
 def find_starting_lines_authors(line_info):
     token_count = 0
     text = line_info["text"]
+    # pdb.set_trace()
     if ":" in text:
         parts = text.split(":")
         before_colon = parts[0].strip()
@@ -18,16 +21,19 @@ def find_starting_lines_authors(line_info):
 
     surname = tokens[0]
 
-    if not (surname and surname[0].isupper() and re.match(r"^[\w\-']+$", surname, re.UNICODE)):
+    if not (surname and surname[0].isupper() and re.match(r"^[\w\- ']+$", surname, re.UNICODE)):
         return False
     token_count += 1
 
     name = tokens[1] if len(tokens) > 2 else None
     if name and not (name[0].isupper()):
         return False
+    if not name:
+        name = "yyy"
+        token_count -= 1
     token_count += 1
 
-    year_search_pattern = re.compile(r'\d{4}[a-zA-Z]?$')
+    year_search_pattern = re.compile(r'\d{4}[a-zA-iZ]?$')
     if token_count < len(tokens) and not ":" in text:
         year = tokens[token_count].split()[0]
     elif token_count < len(tokens) and ":" in text:
@@ -67,6 +73,7 @@ def extract_authors_from_pdf(doc, page_idx, search_text):
                             "name": "yyy",
                             "year": "yyy", 
                         })
+                        
                         find_starting_lines_authors(lines_info[-1])
         page_idx += 1
     return lines_info
