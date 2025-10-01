@@ -36,18 +36,45 @@ def find_delimiting_page(delimiters, doc):
 
 def split_into_parts(doc, ranges, tmp_dir, src_path):
     parts = []
+    gap_start = 0
+    page_count = doc.page_count
     for idx, (start, end) in enumerate(ranges.values()):
         start_clamped = max(0, min(start +1, doc.page_count - 1))
         end_clamped = max(0, min(end +1, doc.page_count - 1))
+        # vmesni deli ki niso clanki
+        if gap_start < start_clamped:
+            tmp_doc = pymupdf.open()
+            tmp_doc.insert_pdf(doc, from_page=gap_start, to_page=start_clamped -1)
+            tmp_path = os.path.join(tmp_dir, f"{Path(src_path).stem}_part_{idx:02d}_gap.pdf")
+            tmp_doc.save(tmp_path)
+            tmp_doc.close()
+            tmp_part = {"path": tmp_path, "isRange":False}
+            parts.append(tmp_part)
+            print(f"Created gap {idx}/2: pages {gap_start}..{start_clamped} -> {tmp_path}")
+        # clanki, ki jih je treba polinkati 
         if start_clamped > end_clamped:
             continue
-        tmp_doc = pymupdf.open()  # empty
+        tmp_doc = pymupdf.open()
         tmp_doc.insert_pdf(doc, from_page=start_clamped, to_page=end_clamped)
         tmp_path = os.path.join(tmp_dir, f"{Path(src_path).stem}_part_{idx:02d}.pdf")
         tmp_doc.save(tmp_path)
         tmp_doc.close()
-        parts.append(tmp_path)
+        tmp_part = {"path": tmp_path, "isRange":True}
+        parts.append(tmp_part)
+        gap_start = end_clamped + 1
         print(f"Created part {idx}: pages {start_clamped}..{end_clamped} -> {tmp_path}")
+
+    #od zadnjega clanka do konca publikacije
+    if gap_start < page_count -1:
+        tmp_doc = pymupdf.open()
+        tmp_doc.insert_pdf(doc, from_page=gap_start, to_page=page_count -1)
+        tmp_path = os.path.join(tmp_dir, f"{Path(src_path).stem}_part_final_gap.pdf")
+        tmp_doc.save(tmp_path)
+        tmp_doc.close()
+        tmp_part = {"path": tmp_path, "isRange":False}
+        parts.append(tmp_part)
+        print(f"Created gap final: pages {gap_start}..{page_count -1} -> {tmp_path}")
+
     return parts
 
 
@@ -79,7 +106,6 @@ def main():
         return
     tmp_dir = "tmp_multi"
     out_dir = "output"
-    final_out_dir = "output"
     tmp_output_dir = "tmp_output"
     os.makedirs(tmp_dir, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
@@ -91,7 +117,18 @@ def main():
 
     for part in parts:
         print("#####################")
-        file_name = part
+        if not part["isRange"]:
+            file_name = part["path"]
+            doc = pymupdf.open(file_name)
+            base, ext = os.path.splitext(os.path.basename(file_name))
+            output_filename = base + "_linked" + ext
+            output_path = os.path.join(tmp_output_dir, output_filename)
+            doc.save(output_path)
+            doc.close()
+            linked_parts.append(output_path)
+            print("gap_file output name: ", output_path)
+            continue
+        file_name = part["path"]
         print("file name: ", file_name)
         doc = pymupdf.open(file_name)
         authors_page, authors_delimiter = find_delimiting_page(authors_delimiters, doc)
