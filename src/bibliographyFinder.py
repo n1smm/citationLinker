@@ -9,9 +9,16 @@ def find_starting_lines_authors(line_info):
     token_count = 0
     text = line_info["text"]
     # pdb.set_trace()
+    dot_delimiter = re.compile(r"\d{4}[a-zA-Z]?\.")
+    dot_match = dot_delimiter.search(text);
+    if dot_match:
+        print("dot_match: ", dot_match, " end: ", dot_match.end())
     if ":" in text:
         parts = text.split(":")
         before_colon = parts[0].strip()
+    elif dot_match:
+        before_colon = text[:dot_match.end() -1]
+        # print("before_colon: ", before_colon)
     else:
         before_colon = text.strip()
 
@@ -34,7 +41,7 @@ def find_starting_lines_authors(line_info):
         token_count -= 1
     token_count += 1
 
-    year_search_pattern = re.compile(r'\d{4}[a-zA-iZ]?$')
+    year_search_pattern = re.compile(r'\d{4}[a-zA-Z]?$')
 
     #ostali avtorji ce so
     others = []

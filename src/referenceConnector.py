@@ -91,6 +91,7 @@ def reference_connector(authors_info, references_info, doc):
                                 "page": int(author["page"]),
                                 "to": author_point
                                 }
+                        print(f"Matched: {ref['surname']} {ref['year']} -> page {author['page']}, to: {author_point}")
                         page.insert_link(last_link)
                         is_annot = False
                         # iskanje letnice za podrctanja ali highlight
@@ -108,6 +109,8 @@ def reference_connector(authors_info, references_info, doc):
                                 annot = page.add_highlight_annot(rect)
                             annot.set_colors({"stroke":config['STROKE']})
                             annot.update()
+                    # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
+                    break
 
         # ce gre za posebni primer, kjer se navajanje navezuje na prejsnjo delo (npr. "nav. d.")
         if ref["surname"] == "special_case" and last_link:
@@ -116,6 +119,7 @@ def reference_connector(authors_info, references_info, doc):
             num_ref_found += 1
             curr_page = int(ref["page"])
             page = doc[curr_page]
+            print("special case last link: ", last_link)
             for rect in ref_rects:
                 curr_link = {
                         "kind": pymupdf.LINK_GOTO,

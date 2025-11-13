@@ -36,10 +36,12 @@ def split_info(ref, author_token, page_idx, page, last_ref):
     # preglej token ali 2 pred letnico in jih smatraj kot 1. priimek, 2. ime
     surname = ""
     name = ""
-    # if tokens[year_idx -1] and tokens[year_idx -1][0].isupper():
-    for i in range(year_idx - 2, max(year_idx - 5, -1), -1):
-        if tokens[i].strip()[0].isupper():
-            surname = tokens[i]
+    if tokens[year_idx -1] and tokens[year_idx -1][0].isupper():
+        surname = tokens[year_idx -1]
+    else:
+        for i in range(year_idx - 2, max(year_idx - 5, -1), -1):
+            if tokens[i].strip()[0].isupper():
+                surname = tokens[i]
     for i in range(year_idx - 2, max(year_idx - 5, -1), -1):
         if tokens[i][0].isupper() and tokens[i] != surname:
             name = tokens[i]
@@ -130,7 +132,7 @@ def screen_text(doc, page_idx, delimiter):
         text = text[:delimiter_index]
     temp_refs = check_in_parentheses(text) #inParenthesesExtractor.py
     add_info_to_references(temp_refs, page, page_idx, references_info)
-    print_references_info(references_info)
+    # print_references_info(references_info)
     return references_info
 
     
