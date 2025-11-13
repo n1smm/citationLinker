@@ -10,6 +10,17 @@ def close_match(ref, author):
     else:
         return False
 
+def close_match_array(ref,array):
+    for author in array:
+        if author and len(ref) > 2 and len(author) > 2:
+            # if ref.lower()[:-2] in author.lower():
+            #     print("true")
+            # print("ref: ", ref, " author:", author)
+            return ref.lower()[:-2] in author.lower()
+        else:
+            return False
+
+
 # dodatni check za pravilen rect pri annotiranju
 def is_same_line(rect1, rect2, tolerance=2):
     return abs(rect1.y0 - rect2.y0) < tolerance and abs(rect1.y1 - rect2.y1) < tolerance
@@ -57,6 +68,8 @@ def reference_connector(authors_info, references_info, doc):
                         or close_match(
                             uniteSurnameName(ref["surname"], ref["name"]),
                             author["name"])
+                        or close_match_array(ref["surname"], author["others"])
+                        or close_match_array(ref["name"], author["others"])
 
 
                     ):

@@ -18,6 +18,9 @@ def print_lines_info(lines_info):
         print(f"Text: {entry['text']}\nRect: {entry['position']}\nPage: {entry['page']}")
         if "surname" in entry:
             print(f"Surname: {entry['surname']}, Name: {entry['name']}, Year: {entry['year']}")
+        if not "yyy" in entry["others"][0]:
+            for idx,other in enumerate(entry["others"]):
+                print(f"Other {idx}: {other}")
         print()
     page_counts = Counter(line["page"] for line in lines_info if "surname" in line and line["surname"])
     print ("page counts: ", page_counts)
@@ -39,8 +42,8 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
     gap_start = 0
     page_count = doc.page_count
     for idx, (start, end) in enumerate(ranges.values()):
-        start_clamped = max(0, min(start +1, doc.page_count - 1))
-        end_clamped = max(0, min(end +1, doc.page_count - 1))
+        start_clamped = max(0, min(start, doc.page_count - 1))
+        end_clamped = max(0, min(end, doc.page_count - 1))
         # vmesni deli ki niso clanki
         if gap_start < start_clamped:
             tmp_doc = pymupdf.open()
@@ -50,7 +53,7 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
             tmp_doc.close()
             tmp_part = {"path": tmp_path, "isRange":False}
             parts.append(tmp_part)
-            print(f"Created gap {idx}/2: pages {gap_start}..{start_clamped} -> {tmp_path}")
+            print(f"Created gap {idx}/2: pages {gap_start}..{start_clamped -1} -> {tmp_path}")
         # clanki, ki jih je treba polinkati 
         if start_clamped > end_clamped:
             continue

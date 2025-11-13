@@ -15,7 +15,8 @@ def find_starting_lines_authors(line_info):
     else:
         before_colon = text.strip()
 
-    tokens = [t.strip() for t in before_colon.split(",")]
+    # tokens = [t.strip() for t in before_colon.split(",")]
+    tokens = [t.strip() for t in re.split(r",|\bin\b", before_colon)]
     if len(tokens) < 2:
         return False
 
@@ -34,6 +35,22 @@ def find_starting_lines_authors(line_info):
     token_count += 1
 
     year_search_pattern = re.compile(r'\d{4}[a-zA-iZ]?$')
+
+    #ostali avtorji ce so
+    others = []
+    for idx, token in enumerate(tokens):
+        if (token 
+            and idx > 1
+            and not year_search_pattern.match(token) 
+            and idx < len(tokens) -1 
+            and len(token) > 0
+            and token[0].isupper()):
+                other_tokens = token.split()
+                for o in other_tokens:
+                    if o and len(o):
+                        others.append(o.strip())
+
+    #letnica
     if token_count < len(tokens) and not ":" in text:
         year = tokens[token_count].split()[0]
     elif token_count < len(tokens) and ":" in text:
@@ -44,7 +61,9 @@ def find_starting_lines_authors(line_info):
     if not year_search_pattern.match(year):
         return False
 
-    line_info.update({"surname": surname, "name": name, "year": year})
+    if (not others):
+        others = ["yyy"]
+    line_info.update({"surname": surname, "name": name, "year": year, "others": others})
     return True
 
 
@@ -71,6 +90,7 @@ def extract_authors_from_pdf(doc, page_idx, search_text):
                             "page": page_idx,
                             "surname": "yyy",
                             "name": "yyy",
+                            "others": ["yyy"],
                             "year": "yyy", 
                         })
                         

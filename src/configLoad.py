@@ -30,7 +30,13 @@ def config_load():
                     items = value.split(',')
                     for item in items:
                         item = item.strip().replace('"', '')
-                        numbers = tuple(map(int, item.split(':')))
+                        if config["OFFSET"][0] and "+" in config["OFFSET"][0]:
+                            offset = int(config["OFFSET"][0][1:])
+                        elif config["OFFSET"][0] and "-" in config["OFFSET"][0]:
+                            offset = int(config["OFFSET"][0])
+                        else:
+                            offset = 0
+                        numbers = tuple(map(lambda x: int(x) -1 + offset, item.split(':')))
                         tuples.append(numbers)
                     config[key] = {i: t for i, t in enumerate(tuples)}
                 else:
