@@ -74,7 +74,7 @@ def reference_connector(authors_info, references_info, doc):
 
                     ):
                     num_ref_found += 1
-                    # vzame vse pozicije, kjer se nahaja ujemanje 
+                    # vzame vse pozicije, kjer se nahaja ujemanje
                     # (npr. prelom strani sta 2 poziciji)
                     curr_page = int(ref["page"])
                     ref_rects = (ref["position"] if isinstance(ref["position"], list)
@@ -83,16 +83,21 @@ def reference_connector(authors_info, references_info, doc):
                     page = doc[curr_page]
                     words = page.get_text("words")
                     year_pattern = re.compile(r"[\;\:\)\(]?\b" + re.escape(str(ref["year"])) + r"[a-z]?[\;\:\)\(]?\b", re.IGNORECASE)
+                    # shrani zadnjo povezavo za posebne primere
+                    last_link = {
+                            "page": int(author["page"]),
+                            "to": author_point
+                            }
+                    # print(f"Matched: {ref['surname']} {ref['year']} -> page {author['page']}, to: {author_point}")
                     # doda goto referenco in oblikuje navedbo
                     for rect in ref_rects:
-                        last_link = {
+                        curr_link = {
                                 "kind": pymupdf.LINK_GOTO,
                                 "from": rect,
                                 "page": int(author["page"]),
                                 "to": author_point
                                 }
-                        print(f"Matched: {ref['surname']} {ref['year']} -> page {author['page']}, to: {author_point}")
-                        page.insert_link(last_link)
+                        page.insert_link(curr_link)
                         is_annot = False
                         # iskanje letnice za podrctanja ali highlight
                         # da ne podcrta celotnega iskalnega niza
@@ -119,7 +124,7 @@ def reference_connector(authors_info, references_info, doc):
             num_ref_found += 1
             curr_page = int(ref["page"])
             page = doc[curr_page]
-            print("special case last link: ", last_link)
+            print(f"Special case -> linking to page {last_link['page']}, to: {last_link['to']}")
             for rect in ref_rects:
                 curr_link = {
                         "kind": pymupdf.LINK_GOTO,

@@ -2,8 +2,10 @@ import  pymupdf
 import  sys
 import  os
 import  shutil
+import  string
 from    collections import  Counter
 from    pathlib     import  Path
+
 
 
 sys.path.insert(0, "./src")
@@ -28,13 +30,25 @@ def print_lines_info(lines_info):
 # poisce na kateri strani se zacne literatura
 def find_delimiting_page(delimiters, doc):
 
+    starting_page = doc.page_count
     for delimiter in delimiters:
-        for page_num in reversed(range(doc.page_count)):
+        print("DELIMITER:", delimiter)
+        for page_num in reversed(range(starting_page)):
             page = doc.load_page(page_num)
             lines = page.get_text("text").splitlines()
+            # print ("page_num: ", page_num)
             for line in lines:
+                # clean_line = ''.join(c for c in line if c in string.printable).replace('\xad', '').strip()
+                # if delimiter in clean_line:
+                #     print("FOUND DELIMITER in line:", delimiter)
                 if line.strip() == delimiter:
+                    # print("FOUND DELIMITER:", delimiter)
                     return page_num, delimiter
+                # if starting_page - page_num < 5:
+                #     print("LINE REPR:", repr(line.strip()))
+                #     print("CLEAN LINE REPR:", repr(clean_line.strip()))
+                #     print("CLEAN LINE: ", clean_line)
+                #     print("LINE: ", line)
     return -1, -1
 
 def split_into_parts(doc, ranges, tmp_dir, src_path):
@@ -135,13 +149,13 @@ def main():
         print("file name: ", file_name)
         doc = pymupdf.open(file_name)
         authors_page, authors_delimiter = find_delimiting_page(authors_delimiters, doc)
-        print("authors delimiter: " , authors_delimiter)
         if authors_page == -1 or authors_delimiter == -1:
             print("nepravilen BIBLIOGRAPHY_DELIMITER za dokument:", file_name)
+            print("authors delimiter: " , authors_delimiter, " authors page: ", authors_page)
             return -1
 
         authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-        # print_lines_info(authors_info)
+        print_lines_info(authors_info)
         references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
         reference_connector(authors_info, references_info, doc)
 

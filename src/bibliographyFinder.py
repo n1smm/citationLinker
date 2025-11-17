@@ -56,14 +56,26 @@ def find_starting_lines_authors(line_info):
                 for o in other_tokens:
                     if o and len(o):
                         others.append(o.strip())
+                        token_count +=1
 
     #letnica
-    if token_count < len(tokens) and not ":" in text:
-        year = tokens[token_count].split()[0]
-    elif token_count < len(tokens) and ":" in text:
-        year = tokens[len(tokens) - 1].split()[0]
+    year = None
+    for token in tokens:
+        if year_search_pattern.match(token):
+            year = token.split()[0]
+            break
+    if year:
+        print(year)
     else:
         return False
+    # if token_count < len(tokens) and not ":" in text:
+    #     print(tokens[token_count])
+    #     year = tokens[token_count].split()[0]
+    # elif token_count < len(tokens) and ":" in text:
+    #     print(tokens[token_count])
+    #     year = tokens[len(tokens) - 1].split()[0]
+    # else:
+    #     return False
 
     if not year_search_pattern.match(year):
         return False
