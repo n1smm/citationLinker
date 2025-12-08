@@ -75,7 +75,7 @@ def main():
     authors_page = find_delimiting_page(authors_delimiter, doc)
     # pdb.set_trace()
     authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-    print_lines_info(authors_info)
+    # print_lines_info(authors_info)
     references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
     refs_found = reference_connector(authors_info, references_info, doc)
 

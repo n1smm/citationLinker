@@ -1,6 +1,7 @@
 import  pymupdf
 import  re
 from    configLoad import config
+from    utils import year_span_match
 
 # iskanje bliznjih zadetkov, tako lahko deluje tudi z zelo preprostim sklanjanjem
 # ali razliki v velikih zacetnicah
@@ -47,6 +48,70 @@ def extract_year_annot(word, word_rect, rect):
 def uniteSurnameName(surname, name):
     return (surname + " " + name)
 
+# preverjanje ce se katerikoli del citata in bibliografije ujema (true/false)
+def is_author_match(ref, author):
+    return (
+        close_match(ref["surname"], author["surname"])
+        or close_match(ref["name"], author["surname"])
+        or close_match(ref["surname"], author["name"])
+        or close_match(ref["name"], author["name"])
+        or close_match(uniteSurnameName(ref["surname"], ref["name"]), author["surname"])
+        or close_match(uniteSurnameName(ref["surname"], ref["name"]), author["name"])
+        or close_match_array(ref["surname"], author["others"])
+        or close_match_array(ref["name"], author["others"])
+    )
+
+# pogleda ce se leta 
+def soft_year_match(author, ref):
+    if (author["year_span"] in ref["year"] or
+        author["year"] in ref["year_span"] or
+        author["year_span"] in ref["year_span"]
+        ):
+        return True
+    if year_span_match(author["year_span"], ref["year_span"]):
+        return True
+    for year in author["years"]:
+        if year in ref["year"]:
+            return True
+    return False
+
+# ce najde ujemanje, pripravi linkanje citata z literaturo
+def process_reference_match(ref, author, doc, config):
+    num_ref_found = 1
+    curr_page = int(ref["page"])
+    ref_rects = (ref["position"] if isinstance(ref["position"], list)
+                 else [ref["position"]])
+    author_point = author["position"].tl
+    page = doc[curr_page]
+    words = page.get_text("words")
+    last_link = {
+        "page": int(author["page"]),
+        "to": author_point
+    }
+    for rect in ref_rects:
+        curr_link = {
+            "kind": pymupdf.LINK_GOTO,
+            "from": rect,
+            "page": int(author["page"]),
+            "to": author_point
+        }
+        page.insert_link(curr_link)
+        is_annot = False
+        for w in words:
+            word_rect = pymupdf.Rect(w[0], w[1], w[2], w[3])
+            if rect.intersects(word_rect) and ref["year"] in w[4] and re.fullmatch(r"\d{4}[a-zA-Z]?", ref["year"]) and is_same_line(rect, word_rect):
+                rect = extract_year_annot(w[4], word_rect, rect)
+                is_annot = True
+                break
+        if is_annot and rect:
+            if config['ANNOT_TYPE'] and config['ANNOT_TYPE'][0] == 'underline':
+                annot = page.add_underline_annot(rect)
+            else:
+                annot = page.add_highlight_annot(rect)
+            annot.set_colors({"stroke": config['STROKE']})
+            annot.update()
+    return num_ref_found, last_link
+
 # poveze literaturo z navajanji v tekstu in doda goto povezave (hyperlinke)
 def reference_connector(authors_info, references_info, doc):
     last_link = None
@@ -57,65 +122,21 @@ def reference_connector(authors_info, references_info, doc):
             # najprej poisce ce obstaja leto iz navajanja v literaturi
             # potem poisce ce se ujema tudi avtor
             if author["year"] and ref["year"] in author["year"]:
-                if (
-                        close_match(ref["surname"], author["surname"])
-                        or close_match(ref["name"], author["surname"])
-                        or close_match(ref["surname"], author["name"])
-                        or close_match(ref["name"], author["name"])
-                        or close_match(
-                            uniteSurnameName(ref["surname"], ref["name"]),
-                            author["surname"])
-                        or close_match(
-                            uniteSurnameName(ref["surname"], ref["name"]),
-                            author["name"])
-                        or close_match_array(ref["surname"], author["others"])
-                        or close_match_array(ref["name"], author["others"])
-
-
-                    ):
-                    num_ref_found += 1
-                    # vzame vse pozicije, kjer se nahaja ujemanje
-                    # (npr. prelom strani sta 2 poziciji)
-                    curr_page = int(ref["page"])
-                    ref_rects = (ref["position"] if isinstance(ref["position"], list)
-                                 else [ref["position"]])
-                    author_point = author["position"].tl
-                    page = doc[curr_page]
-                    words = page.get_text("words")
-                    year_pattern = re.compile(r"[\;\:\)\(]?\b" + re.escape(str(ref["year"])) + r"[a-z]?[\;\:\)\(]?\b", re.IGNORECASE)
-                    # shrani zadnjo povezavo za posebne primere
-                    last_link = {
-                            "page": int(author["page"]),
-                            "to": author_point
-                            }
-                    # print(f"Matched: {ref['surname']} {ref['year']} -> page {author['page']}, to: {author_point}")
-                    # doda goto referenco in oblikuje navedbo
-                    for rect in ref_rects:
-                        curr_link = {
-                                "kind": pymupdf.LINK_GOTO,
-                                "from": rect,
-                                "page": int(author["page"]),
-                                "to": author_point
-                                }
-                        page.insert_link(curr_link)
-                        is_annot = False
-                        # iskanje letnice za podrctanja ali highlight
-                        # da ne podcrta celotnega iskalnega niza
-                        for w in words:
-                            word_rect = pymupdf.Rect(w[0], w[1], w[2], w[3])
-                            if rect.intersects(word_rect) and ref["year"] in w[4] and re.fullmatch(r"\d{4}[a-zA-Z]?", ref["year"]) and is_same_line(rect, word_rect):
-                                rect = extract_year_annot(w[4], word_rect, rect)
-                                is_annot = True
-                                break
-                        if is_annot and rect:
-                            if config['ANNOT_TYPE'] and config['ANNOT_TYPE'][0] == 'underline':
-                                annot = page.add_underline_annot(rect)
-                            else:
-                                annot = page.add_highlight_annot(rect)
-                            annot.set_colors({"stroke":config['STROKE']})
-                            annot.update()
+                if is_author_match(ref, author):
+                    nrf, last_link = process_reference_match(ref, author, doc, config)
+                    num_ref_found += nrf
                     # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
                     break
+                    #konec if za leto
+            elif config["SOFT_YEAR"][0] == "True":
+                #logika za dodatno ujemanje
+                if is_author_match(ref, author):
+                    if soft_year_match(author, ref):
+                        nrf, last_link = process_reference_match(ref, author, doc, config)
+                        num_ref_found += nrf
+
+
+
 
         # ce gre za posebni primer, kjer se navajanje navezuje na prejsnjo delo (npr. "nav. d.")
         if ref["surname"] == "special_case" and last_link:
@@ -124,7 +145,7 @@ def reference_connector(authors_info, references_info, doc):
             num_ref_found += 1
             curr_page = int(ref["page"])
             page = doc[curr_page]
-            print(f"Special case -> linking to page {last_link['page']}, to: {last_link['to']}")
+            # print(f"Special case -> linking to page {last_link['page']}, to: {last_link['to']}")
             for rect in ref_rects:
                 curr_link = {
                         "kind": pymupdf.LINK_GOTO,

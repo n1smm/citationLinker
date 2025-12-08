@@ -49,5 +49,7 @@ def config_load():
         config['ANNOT_TYPE'] = ['underline']
     if  'BIBLIOGRAPHY_DELIMITER' not in config:
         config['BIBLIOGRAPHY_DELIMITER'] = ['Literatura']
+    if  'SOFT_YEAR' not in config:
+        config['SOFT_YEAR'] = ['False']
     print("config: ")
     print(config)

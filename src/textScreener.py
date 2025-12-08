@@ -2,6 +2,7 @@ import pymupdf
 import re
 from inParenthesesExtractor import check_in_parentheses
 from configLoad import config
+from utils import years_span_parser, soft_year_expand
 
 
 # predela in razdeli vse relevantne informacji za vsako potencialno referenco
@@ -19,23 +20,37 @@ def split_info(ref, author_token, page_idx, page, last_ref):
                         "name": "xxx",
                         "text": author_token,
                         "position": position,
-                        "page": page_idx
+                        "page": page_idx,
+                        "years": ["xxx"],
+                        "year_span": "xxx",
                         }
             return ref_info
     
     #preglej letnico, tokeniziraj, najdi index letnice v toknih
     year_search_pattern = re.compile(r'(?<!\d)(\d{4}[a-zA-Z]?)(?!\d)')
+    years_span_pattern = re.compile(r'\d{4} {0,2}[-–—]{1,2} {0,2}\d{4}')
     year_matches = year_search_pattern.findall(author_token)
-    if not year_matches:
-        # print("sth wrong with finding year in :", author_token)
+    year_span_matches = years_span_pattern.findall(author_token)
+    if not year_matches and not year_span_matches:
         return None
     tokens = re.split(r'[\s.,;:()\[\]{}!?]+', author_token)
     tokens = [t for t in tokens if t]
-    year_idx = next(i for i, tok in enumerate(tokens) if year_matches[0] in tok)
+    if year_matches and not year_span_matches:
+        year_idx = next(i for i, tok in enumerate(tokens) if year_matches[0] in tok)
+    elif year_span_matches:
+        year_idx = next((i for i, tok in enumerate(tokens) if year_span_matches[0] in tok), None)
+        if year_idx is None:
+            year_idx = next((i for i, tok in enumerate(tokens) if year_matches[0] in tok))
+    else:
+        return None
+
 
     # preglej token ali 2 pred letnico in jih smatraj kot 1. priimek, 2. ime
     surname = ""
     name = ""
+    years = []
+    year_span = ""
+
     if tokens[year_idx -1] and tokens[year_idx -1][0].isupper():
         surname = tokens[year_idx -1]
     else:
@@ -56,12 +71,23 @@ def split_info(ref, author_token, page_idx, page, last_ref):
         if last_ref:
             surname =  last_ref["surname"]
 
+    #dodajanje let za soft_year matching
+    if year_span_matches:
+        years = years_span_parser(year_span_matches[0], years)
+        if len(years) >= 2:
+            year_span = f"{years[0]}-{years[-1]}" or "xxx"
+        else:
+            year_span = "xxx"
+    if not year_span_matches or not years:
+        years = soft_year_expand(year_matches[0], "xxx")
+        year_span = f"{years[0]}-{years[-1]}" or "xxx"
+     
     #iskanje tocne pozicije
     position = page.search_for(author_token, quads=False)
     if not position:
         # print("no position found for ", author_token, ", page: ", page_idx)
         return None
-
+    
 
     #struktura ki se jo bo dodalo v slovar potencialnih referenc
     ref_info = ({
@@ -70,11 +96,17 @@ def split_info(ref, author_token, page_idx, page, last_ref):
         "name": name or "xxx",
         "text": author_token or "xxx",
         "position": position,
-        "page": page_idx
+        "page": page_idx,
+        "years": years or ["xxx"],
+        "year_span": year_span or "xxx"
         })
+
+    # if ref_info["year_span"] != "xxx":
+    #     print(f"year span citation:{ref_info['year_span']}")
 
     return ref_info
 
+# TODO - ce je outside_name ampak notri razdeljeno z ; pomeni da so vse letnice isti avtor
 # reference iz temp_refs, ki so drugacne za vsako stran, jih prenese v references_info
 # se z nekaj dodatnimi informacijami
 def add_info_to_references(temp_refs, page, page_idx, references_info):

@@ -9,10 +9,15 @@ def unite_tokens_to_text(inbound_text, only_parenthesis, start_idx):
     if only_parenthesis:
         start = inbound_text.find(delimiter)
         end = inbound_text.find(")", start) + 1
+        if end == 0:
+            end = len(inbound_text)
     else:
         start = start_idx
         end = inbound_text.find(")", start) + 1
     in_string = inbound_text[start:end] if end > start else ''
+    # if "Strich" in inbound_text and "išin" in inbound_text:
+    #     print("in string text: ", in_string)
+    #     print("inbound text", inbound_text)
     return (in_string)
 
 

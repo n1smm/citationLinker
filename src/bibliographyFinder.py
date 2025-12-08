@@ -2,34 +2,99 @@ import  pymupdf
 import  re
 
 import  pdb
+from utils import years_span_parser, soft_year_expand
 
+
+# # ce je letnica na primer 1999-2002 naredi array/list z letnicami od do
+# def years_span_parser(years_token, years):
+#     year_search_pattern = re.compile(r'\d{4}');
+#     years_span_pattern = re.compile(r'\d{4} {0,2}[-–—]{1,2} {0,2}\d{4}')
+#     match = years_span_pattern.search(years_token)
+#     if not match:
+#         return years
+#     year_span_token = match.group()
+#     # print(f"years_token in func: {years_token}, year_token_span: {year_span_token}")
+#     found_years = [int(year) for year in year_search_pattern.findall(year_span_token)]
+#     if len(found_years) == 2 and (found_years[0] < found_years[1]):
+#         year_array = list(range(found_years[0], found_years[1] + 1))
+#     else:
+#         return years
+
+#     # if len(year_array) > 15:
+#     #     return years
+#     years = [str(year) for year in year_array]
+#     return (years)
+
+# # doda eno leto prej in po letnici, za soft match (ce so napake)
+# # magic_value = "yyy"/"xxx"
+# def soft_year_expand(year, magic_value):
+#     if year == magic_value:
+#         return [magic_value]
+#     year_search_pattern = re.compile(r'\d{4}');
+#     match = year_search_pattern.search(year)
+#     if not match:
+#         return [magic_value]
+#     year_num = int(match.group()) 
+#     year_list = list(range(year_num -1, year_num + 2))
+#     return [str(year) for year in year_list]
+
+# viri ki imajo strukturo tako: leto. naslov npr:(1964. Slovenska matica)
+def find_sources_year_dot_work(line_info):
+    text = line_info["text"]
+    tokens = text.split(".")
+    year_search_pattern = re.compile(r'\d{4}[a-zA-Z]?$')
+    years_span_pattern = re.compile(r'\d{4} {0,2}[-–—]{1,2} {0,2}\d{4}')
+    others = []
+    years = []
+    year_span = "yyy"
+
+    if year_search_pattern.match(tokens[0].strip()):
+        year = tokens[0].strip()
+    else:
+        year = "yyy"
+
+    for token in tokens[1:-1]:
+        if years_span_pattern.search(token.strip()):
+            years = years_span_parser(token.strip(), years)
+            year_span = f"{years[0]}-{years[-1]}" if len(years) > 1 else "yyy"
+            # print(f"year_span is :{year_span}")
+        others.append(token.strip())
+
+    if year == "yyy" and not years:
+        return False
+    if not years:
+        years = soft_year_expand(year, "yyy")
+    if not others or not others[0]:
+        return False
+
+
+    line_info.update({"surname": "SOURCE", "name": "SOURCE", "year": year, "others": others, "years": years, "year_span": year_span})
+    return True
 
 # ce je vrstica z avtorjem_ico izbere potrebne podatke (ime, priimek, leto)
 def find_starting_lines_authors(line_info):
     token_count = 0
+    years = []
+    year_span = "yyy"
     text = line_info["text"]
     # pdb.set_trace()
     dot_delimiter = re.compile(r"\d{4}[a-zA-Z]?\.")
     dot_match = dot_delimiter.search(text);
-    if dot_match:
-        print("dot_match: ", dot_match, " end: ", dot_match.end())
     if ":" in text:
         parts = text.split(":")
         before_colon = parts[0].strip()
     elif dot_match:
         before_colon = text[:dot_match.end() -1]
-        # print("before_colon: ", before_colon)
     else:
         before_colon = text.strip()
 
-    # tokens = [t.strip() for t in before_colon.split(",")]
     tokens = [t.strip() for t in re.split(r",|\bin\b", before_colon)]
     if len(tokens) < 2:
         return False
 
     surname = tokens[0]
 
-    if not (surname and surname[0].isupper() and re.match(r"^[\w\- ']+$", surname, re.UNICODE)):
+    if not (surname and surname[0].isupper()): # and re.match(r"^[\w\- ']+$", surname, re.UNICODE)):
         return False
     token_count += 1
 
@@ -64,10 +129,13 @@ def find_starting_lines_authors(line_info):
         if year_search_pattern.match(token):
             year = token.split()[0]
             break
-    if year:
-        print(year)
-    else:
-        return False
+    if not year:
+        years_span_pattern = re.compile(r'\d{4} {0,2}[-–—]{1,2} {0,2}\d{4}')
+        if years_span_pattern.search(text):
+            years = years_span_parser(text, years)
+            year_span = f"{years[0]}-{years[-1]}" if len(years) > 1 else "yyy"
+        else:
+            return False
     # if token_count < len(tokens) and not ":" in text:
     #     print(tokens[token_count])
     #     year = tokens[token_count].split()[0]
@@ -77,12 +145,14 @@ def find_starting_lines_authors(line_info):
     # else:
     #     return False
 
-    if not year_search_pattern.match(year):
-        return False
-
-    if (not others):
+    if not others:
         others = ["yyy"]
-    line_info.update({"surname": surname, "name": name, "year": year, "others": others})
+    if not years and year:
+        years = soft_year_expand(year, "yyy")
+        year_span = f"{years[0]}-{years[-1]}" or "yyy"
+    if not year:
+        year = "yyy"
+    line_info.update({"surname": surname, "name": name, "year": year, "others": others, "years": years, "year_span": year_span})
     return True
 
 
@@ -111,8 +181,11 @@ def extract_authors_from_pdf(doc, page_idx, search_text):
                             "name": "yyy",
                             "others": ["yyy"],
                             "year": "yyy", 
+                            "years": ["yyy"],
+                            "year_span": "yyy",
                         })
                         
-                        find_starting_lines_authors(lines_info[-1])
+                        if not find_starting_lines_authors(lines_info[-1]):
+                            find_sources_year_dot_work(lines_info[-1])
         page_idx += 1
     return lines_info

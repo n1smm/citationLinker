@@ -3,6 +3,8 @@ import  sys
 import  os
 import  shutil
 import  string
+import  math
+import  re
 from    collections import  Counter
 from    pathlib     import  Path
 
@@ -23,32 +25,57 @@ def print_lines_info(lines_info):
         if not "yyy" in entry["others"][0]:
             for idx,other in enumerate(entry["others"]):
                 print(f"Other {idx}: {other}")
+        if not "yyy" in entry["years"][0]:
+            # for idx, y in enumerate(entry["years"]):
+            #     print(f"Year{idx}: {y}")
+            print("year_span:", entry["year_span"])
         print()
     page_counts = Counter(line["page"] for line in lines_info if "surname" in line and line["surname"])
     print ("page counts: ", page_counts)
 
+# def normalize_soft_hyphens(text):
+#     # Replace soft hyphens between letters with nothing (remove)
+#     text = re.sub(r'(?<=\w)\xad(?=\w)', '', text)
+#     # Replace soft hyphens surrounded by whitespace with a space
+#     text = re.sub(r'\s*\xad\s*', ' ', text)
+#     return text
+def normalize_soft_text(text):
+    # Remove soft hyphens between letters
+    text = re.sub(r'(?<=\w)\xad(?=\w)', '', text)
+    # Replace soft hyphens surrounded by whitespace with a space
+    text = re.sub(r'\s*\xad\s*', ' ', text)
+    # Replace non-breaking spaces with a regular space
+    text = text.replace('\xa0', ' ')
+    return text
+
 # poisce na kateri strani se zacne literatura
 def find_delimiting_page(delimiters, doc):
 
-    starting_page = doc.page_count
+    starting_page = math.floor((doc.page_count / 100) * 60)
     for delimiter in delimiters:
-        print("DELIMITER:", delimiter)
-        for page_num in reversed(range(starting_page)):
+        # print("DELIMITER:", delimiter)
+        for page_num in range(starting_page, doc.page_count):
             page = doc.load_page(page_num)
             lines = page.get_text("text").splitlines()
-            # print ("page_num: ", page_num)
+            # print ("page_num: ", page_num, " starting page: ", starting_page)
             for line in lines:
                 # clean_line = ''.join(c for c in line if c in string.printable).replace('\xad', '').strip()
-                # if delimiter in clean_line:
-                #     print("FOUND DELIMITER in line:", delimiter)
+                clean_line = normalize_soft_text(line)
                 if line.strip() == delimiter:
-                    # print("FOUND DELIMITER:", delimiter)
                     return page_num, delimiter
-                # if starting_page - page_num < 5:
-                #     print("LINE REPR:", repr(line.strip()))
-                #     print("CLEAN LINE REPR:", repr(clean_line.strip()))
-                #     print("CLEAN LINE: ", clean_line)
-                #     print("LINE: ", line)
+                # if page_num == 11 or page_num == 12:
+                #     print("line is this:", line)
+                #     print("LINE REPR:", repr(line))
+                # if doc.page_count - page_num > 10:
+                    # print()
+                    # print("LINE: ", line)
+                    # print("LINE REPR:", repr(line))
+                    # print(f"LINE:{' ' * 14}{line}")
+                    # print(f"CLEAN LINE REPR:{' ' * 2}{repr(clean_line.strip())}")
+                    # print("CLEAN LINE REPR:", repr(clean_line.strip()))
+                    # print()
+                    # print("CLEAN LINE: ", clean_line)
+                    # print("LINE: ", line)
     return -1, -1
 
 def split_into_parts(doc, ranges, tmp_dir, src_path):
@@ -74,6 +101,19 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
         tmp_doc = pymupdf.open()
         tmp_doc.insert_pdf(doc, from_page=start_clamped, to_page=end_clamped)
         tmp_path = os.path.join(tmp_dir, f"{Path(src_path).stem}_part_{idx:02d}.pdf")
+        # sprintaj par vrstic na prvi in zadnji strani
+        first_page_text = doc.load_page(start_clamped).get_text().splitlines()[:5]
+        last_page_text = doc.load_page(end_clamped).get_text().splitlines()[:5]
+        print()
+        print(f" ---- Preview first page ({start_clamped}):")
+        for line in first_page_text:
+            print(line)
+        print()
+        print(f" ---- Preview last page ({end_clamped}):")
+        for line in last_page_text:
+            print(line)
+        print()
+        # konec printanja
         tmp_doc.save(tmp_path)
         tmp_doc.close()
         tmp_part = {"path": tmp_path, "isRange":True}
@@ -155,7 +195,7 @@ def main():
             return -1
 
         authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-        print_lines_info(authors_info)
+        # print_lines_info(authors_info)
         references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
         reference_connector(authors_info, references_info, doc)
 
