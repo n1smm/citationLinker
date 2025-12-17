@@ -51,5 +51,7 @@ def config_load():
         config['BIBLIOGRAPHY_DELIMITER'] = ['Literatura']
     if  'SOFT_YEAR' not in config:
         config['SOFT_YEAR'] = ['False']
+    if 'DEEP_SEARCH' not in config:
+        config['SOFT_YEAR'] = ['False']
     print("config: ")
     print(config)

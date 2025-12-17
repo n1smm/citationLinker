@@ -47,3 +47,72 @@ def year_span_match(span1, span2):
         return True
 
     return False
+
+
+# preprost sort (ce bi ga bilo treba razsiriti v prihodnosti) - vrne letnice brez dvojnikov
+def years_sort(years):
+    return sorted(set(years))
+
+            
+# 0 - normalizirati (brez whitespace)
+# 1 - vstavi whitespace spredaj
+# -1 - vstavi whitespace zadaj
+# -2 - zamenja vse cudne za navaden '
+def normalize_apostrophe(text, normalize):
+    # text = re.sub(r"[`’]", "'", text)
+    if normalize == 0:
+        return re.sub(r"\s*['’`]\s*", "'", text)
+    elif normalize > 0:
+        return re.sub(r"['’`]", " '", text)
+    elif normalize == -1:
+        return re.sub(r"['’`]", "' ", text)
+    else:
+        return re.sub(r"['’`]", "'", text)
+
+
+# isto kot zgornja funkcija 
+def normalize_hyphen(text):
+    return re.sub(r"\s{0,2}[-–—‒―−]\s{0,2}", "", text)
+
+# doda v others alternativne moznosti imena (zaobide obklikovalne napake/razlike)
+# ce je vec imen, ce je ' znotraj imena; ce je ime bilo prelomljeno
+def alternative_names_concat(text):
+    others = []
+    if not text or len(text) <= 1:
+        return others
+    #ce je ' v textu
+    if re.search(r" ['’`]|['’`] ", text):
+    # if " '" in text or "' " in text:
+        if "haen" in text:
+            print("###")
+            print("haen with ' space")
+        text = normalize_apostrophe(text, 0)
+        tokens = text.split()
+        others.extend([t for t in tokens if "'" in t])
+    elif re.search(r"['’`]", text):
+    # elif "'" in text:
+        if "haen" in text:
+            print("###")
+            print("haen with '")
+        tokens = text.split()
+        for t in tokens:
+            if re.search(r"['’`]", t):
+                others.append(normalize_apostrophe(t, -1))
+                others.append(normalize_apostrophe(t, 1))
+                others.append(normalize_apostrophe(t, -2))
+
+    # ce je ime bilo prelomljeno
+    if re.search(f"[-–—‒―−]", text):
+        text = normalize_hyphen(text)
+
+    # ce je vec imen
+    tokens = [t for t in text.split() if t and t[0].isupper()]
+    if tokens and len(tokens) > 1:
+        others.extend([t for t in tokens if t and t[0].isupper()])
+
+    if "haen" in text:
+        print(f" haen text: {text}")
+        print(others)
+        print("---")
+
+    return others

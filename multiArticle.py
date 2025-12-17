@@ -104,15 +104,15 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
         # sprintaj par vrstic na prvi in zadnji strani
         first_page_text = doc.load_page(start_clamped).get_text().splitlines()[:5]
         last_page_text = doc.load_page(end_clamped).get_text().splitlines()[:5]
-        print()
-        print(f" ---- Preview first page ({start_clamped}):")
-        for line in first_page_text:
-            print(line)
-        print()
-        print(f" ---- Preview last page ({end_clamped}):")
-        for line in last_page_text:
-            print(line)
-        print()
+        # print()
+        # print(f" ---- Preview first page ({start_clamped}):")
+        # for line in first_page_text:
+        #     print(line)
+        # print()
+        # print(f" ---- Preview last page ({end_clamped}):")
+        # for line in last_page_text:
+        #     print(line)
+        # print()
         # konec printanja
         tmp_doc.save(tmp_path)
         tmp_doc.close()

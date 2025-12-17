@@ -21,6 +21,14 @@ def close_match_array(ref,array):
         else:
             return False
 
+# poglej ce se ujema del enega lista z drugim
+def match_array_array(array1, array2):
+    if config['DEEP_SEARCH'][0] != "True":
+        return False
+    for elem1 in array1:
+        for elem2 in array2:
+            if elem1.lower()[:-2] in elem2.lower():
+                return True
 
 # dodatni check za pravilen rect pri annotiranju
 def is_same_line(rect1, rect2, tolerance=2):
@@ -59,6 +67,7 @@ def is_author_match(ref, author):
         or close_match(uniteSurnameName(ref["surname"], ref["name"]), author["name"])
         or close_match_array(ref["surname"], author["others"])
         or close_match_array(ref["name"], author["others"])
+        or match_array_array(ref["others"], author["others"])
     )
 
 # pogleda ce se leta 
