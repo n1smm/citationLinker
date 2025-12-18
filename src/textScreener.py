@@ -169,30 +169,6 @@ def add_info_to_references(temp_refs, page, page_idx, references_info):
             if curr_ref:
                 references_info.append(curr_ref)
 
-# debuging oz. za preverjanje koncega slovarja najdenih referenc: references_info
-def print_references_info(references_info):
-    for ref in references_info:
-        if not ref:
-            continue
-        print(f"year: {ref.get('year', '')}")
-        print(f"surname: {ref.get('surname', '')}")
-        print(f"name: {ref.get('name', '')}")
-        print(f"text: {ref.get('text', '')}")
-        print(f"position: {ref.get('position', '')}")
-        print(f"page: {ref.get('page', '')}")
-        print("-------")
-        if ref["others"] and ref["others"][0] != "xxx":
-            for other in ref["others"]:
-                print(f"other: {other}")
-        if ref["years"] and ref["years"][0] != "xxx":
-            for year in ref["years"]:
-                print(f"year: {year}")
-            print("span: ", ref["year_span"])
-        print("\n------------------\n")
-#debug print za temp ref
-def print_temp_ref_text(temp_refs):
-    print('\n'.join(ref["text"] for ref in temp_refs))    
-    print("----------------------------------------")
 
 # precesa celoten tekst in izbere dele k bi lahko bili reference,
 # zakljuci ko pride do virov
@@ -216,8 +192,6 @@ def screen_text(doc, page_idx, delimiter):
         text = text[:delimiter_index]
     temp_refs = check_in_parentheses(text) #inParenthesesExtractor.py
     add_info_to_references(temp_refs, page, page_idx, references_info)
-    print_references_info(references_info)
     return references_info
 
     
-

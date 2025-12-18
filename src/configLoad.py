@@ -53,5 +53,7 @@ def config_load():
         config['SOFT_YEAR'] = ['False']
     if 'DEEP_SEARCH' not in config:
         config['SOFT_YEAR'] = ['False']
+    if  'DEBUG' not in config:
+        config['DEBUG'] = ['False']
     print("config: ")
     print(config)
