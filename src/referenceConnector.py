@@ -79,9 +79,10 @@ def soft_year_match(author, ref):
         return True
     if year_span_match(author["year_span"], ref["year_span"]):
         return True
-    for year in author["years"]:
-        if year in ref["year"]:
-            return True
+    author_years = set(str(y) for y in author.get("years", []))
+    ref_years = set(str(y) for y in ref.get("years", []))
+    if author_years & ref_years:
+        return True
     return False
 
 # ce najde ujemanje, pripravi linkanje citata z literaturo
@@ -126,23 +127,32 @@ def reference_connector(authors_info, references_info, doc):
     last_link = None
     num_ref_found = 0
     for ref  in references_info:
-        for author in authors_info:
-            
-            # najprej poisce ce obstaja leto iz navajanja v literaturi
-            # potem poisce ce se ujema tudi avtor
-            if author["year"] and ref["year"] in author["year"]:
-                if is_author_match(ref, author):
-                    nrf, last_link = process_reference_match(ref, author, doc, config)
-                    num_ref_found += nrf
-                    # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
-                    break
-                    #konec if za leto
-            elif config["SOFT_YEAR"][0] == "True":
-                #logika za dodatno ujemanje
-                if is_author_match(ref, author):
-                    if soft_year_match(author, ref):
+        # preskoči iskanje v bibliografiji za posebne primere
+        if ref["surname"] == "special_case":
+            # posebni primer bo obdelan spodaj
+            pass
+        else:
+            for author in authors_info:
+
+                # najprej poisce ce obstaja leto iz navajanja v literaturi
+                # potem poisce ce se ujema tudi avtor
+                if author["year"] and ref["year"] in author["year"]:
+                    if is_author_match(ref, author):
                         nrf, last_link = process_reference_match(ref, author, doc, config)
                         num_ref_found += nrf
+                        print(f"DEBUG: Matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
+                        # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
+                        break
+                        #konec if za leto
+                elif config["SOFT_YEAR"][0] == "True":
+                    #logika za dodatno ujemanje
+                    if is_author_match(ref, author):
+                        if soft_year_match(author, ref):
+                            nrf, last_link = process_reference_match(ref, author, doc, config)
+                            num_ref_found += nrf
+                            print(f"DEBUG: Soft-matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
+                            # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
+                            break
 
 
 
@@ -154,8 +164,9 @@ def reference_connector(authors_info, references_info, doc):
             num_ref_found += 1
             curr_page = int(ref["page"])
             page = doc[curr_page]
-            # print(f"Special case -> linking to page {last_link['page']}, to: {last_link['to']}")
+            print(f"DEBUG: Special case '{ref['text']}' on page {ref['page']} linking to page {last_link['page']}, point: {last_link['to']}")
             for rect in ref_rects:
+                print("autors_point to: ", last_link["to"], " point: ", pymupdf.Point(*last_link["to"]))
                 curr_link = {
                         "kind": pymupdf.LINK_GOTO,
                         "from": rect,

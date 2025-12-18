@@ -195,7 +195,7 @@ def main():
             return -1
 
         authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-        # print_lines_info(authors_info)
+        print_lines_info(authors_info)
         references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
         reference_connector(authors_info, references_info, doc)
 

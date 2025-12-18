@@ -184,6 +184,10 @@ def print_references_info(references_info):
         if ref["others"] and ref["others"][0] != "xxx":
             for other in ref["others"]:
                 print(f"other: {other}")
+        if ref["years"] and ref["years"][0] != "xxx":
+            for year in ref["years"]:
+                print(f"year: {year}")
+            print("span: ", ref["year_span"])
         print("\n------------------\n")
 #debug print za temp ref
 def print_temp_ref_text(temp_refs):
