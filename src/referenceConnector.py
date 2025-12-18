@@ -25,10 +25,23 @@ def close_match_array(ref,array):
 def match_array_array(array1, array2):
     if config['DEEP_SEARCH'][0] != "True":
         return False
+    match = 0
     for elem1 in array1:
         for elem2 in array2:
-            if elem1.lower()[:-2] in elem2.lower():
-                return True
+            if (len(elem1) > 2 
+                and len(elem2) > 2
+                and elem1 in elem2 
+                and elem1[0].isupper()
+                and elem2[0].isupper()
+                and elem2 not in config['ALTERNATIVE_BIB']
+                and elem1 not in config['ALTERNATIVE_BIB']
+                and not any(option in elem1 for option in config['ALTERNATIVE_BIB'])
+                and not any(option in elem2 for option in config['ALTERNATIVE_BIB'])
+                ):
+                match +=1
+                if match >= 2:
+                    return True
+    return False
 
 # dodatni check za pravilen rect pri annotiranju
 def is_same_line(rect1, rect2, tolerance=2):
@@ -166,7 +179,7 @@ def reference_connector(authors_info, references_info, doc):
             page = doc[curr_page]
             # print(f"DEBUG: Special case '{ref['text']}' on page {ref['page']} linking to page {last_link['page']}, point: {last_link['to']}")
             for rect in ref_rects:
-                print("autors_point to: ", last_link["to"], " point: ", pymupdf.Point(*last_link["to"]))
+                # print("autors_point to: ", last_link["to"], " point: ", pymupdf.Point(*last_link["to"]))
                 curr_link = {
                         "kind": pymupdf.LINK_GOTO,
                         "from": rect,

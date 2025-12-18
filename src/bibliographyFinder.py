@@ -2,7 +2,8 @@ import  pymupdf
 import  re
 
 import  pdb
-from utils import years_span_parser, soft_year_expand, alternative_names_concat
+from    utils       import years_span_parser, soft_year_expand, alternative_names_concat
+from    configLoad  import config
 
 
 # viri ki imajo strukturo tako: leto. naslov npr:(1964. Slovenska matica)
@@ -160,7 +161,9 @@ def extract_authors_from_pdf(doc, page_idx, search_text):
                             "year_span": "yyy",
                         })
                         
-                        if not find_starting_lines_authors(lines_info[-1]):
+                        if not (find_starting_lines_authors(lines_info[-1])
+                                and config['ALTERNATIVE_BIB'][0] == "True"
+                                ):
                             find_sources_year_dot_work(lines_info[-1])
         page_idx += 1
     return lines_info

@@ -31,7 +31,8 @@ def find_delimiting_page(delimiters, doc):
                 if line.strip() == delimiter:
                     return page_num, delimiter
                 if config['DEBUG'][0] == "True":
-                    print_delimiter_info(line, page_num, starting_page) 
+                    # print_delimiter_info(line, page_num, starting_page) 
+                    pass
     return -1, -1
 
 # razdeli file, tako da je vsak clanek svoj pdf v tmp_multi
@@ -65,7 +66,8 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
         last_page_text = doc.load_page(end_clamped).get_text().splitlines()[:5]
         #print za preverjanje
         if config['DEBUG'][0] == "True":
-            preview_page_lines(start_clamped, end_clamped, doc)
+            # preview_page_lines(start_clamped, end_clamped, doc)
+            pass
 
         tmp_doc.save(tmp_path)
         tmp_doc.close()
@@ -152,6 +154,8 @@ def main():
         if config['DEBUG'][0] == "True":
             print_bibliography_info(authors_info)
             print_references_info(references_info)
+            pass
+
         reference_connector(authors_info, references_info, doc)
 
         #naredi nov file z narejenimi povezavami, original ostane isti

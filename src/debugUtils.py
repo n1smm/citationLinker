@@ -38,7 +38,6 @@ def print_bibliography_info(lines_info):
             for idx,other in enumerate(entry["others"]):
                 print(f"Other {idx}: {other}")
         if not "yyy" in entry["years"][0]:
-    # print_references_info(references_info)
             # for idx, y in enumerate(entry["years"]):
             #     print(f"Year{idx}: {y}")
             print("year_span:", entry["year_span"])

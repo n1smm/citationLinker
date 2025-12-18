@@ -45,6 +45,8 @@ def config_load():
     config_color()
     if 'SPECIAL_CASE' not in config:
         config['SPECIAL_CASE'] = ['nav. d.']
+    if 'SEARCH_EXCLUDE' not in config:
+        config['SEARCH_EXCLUDE'] = ['Ur', 'Ur.']
     if 'ANNOT_TYPE' not in config:
         config['ANNOT_TYPE'] = ['underline']
     if  'BIBLIOGRAPHY_DELIMITER' not in config:
@@ -55,5 +57,7 @@ def config_load():
         config['SOFT_YEAR'] = ['False']
     if  'DEBUG' not in config:
         config['DEBUG'] = ['False']
+    if  'ALTERNATIVE_BIB' not in config:
+        config['ALTERNATIVE_BIB'] = ['False']
     print("config: ")
     print(config)
