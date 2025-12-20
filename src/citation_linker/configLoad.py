@@ -1,3 +1,4 @@
+from    pathlib import Path
 #shranjene moznosti iz .config file-a
 config = {}
 
@@ -20,8 +21,8 @@ def config_color():
         config['STROKE'] = colors[3]
     
 #load moznosti iz .config file-a v config strukturo
-def config_load():
-    with open('./.config') as file:
+def config_load(config_path):
+    with config_path.open("r") as file:
         for line in file:
             if '=' in line and not line.strip().startswith('#'):
                 if "ARTICLE_BREAKS" in line:

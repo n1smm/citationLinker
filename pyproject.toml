@@ -1,0 +1,27 @@
+[project]
+name = "citation-linker"
+version = "0.1.0"
+description = "CLI tool for citation linking"
+authors = [{name = "n1smm", email = "nomail@please.com"}]
+requires-python = ">=3.12"
+readme = "README.md"
+dependencies = [
+	# "pypdf"
+	"pyMuPDF>=1.26.7"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+citation_linker = ["data/*.config"]
+
+[project.scripts]
+citation-linker = "citation_linker.citationLinker:main"
+citation-multi-article = "citation_linker.multiArticle:main"
+citation-multi-file = "citation_linker.multiFile:main"
+citation-config = "citation_linker.citationConfig:main"

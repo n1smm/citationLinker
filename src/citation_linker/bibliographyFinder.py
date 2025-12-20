@@ -2,8 +2,8 @@ import  pymupdf
 import  re
 
 import  pdb
-from    utils       import years_span_parser, soft_year_expand, alternative_names_concat
-from    configLoad  import config
+from    .utils       import years_span_parser, soft_year_expand, alternative_names_concat
+from    .configLoad  import config
 
 
 # viri ki imajo strukturo tako: leto. naslov npr:(1964. Slovenska matica)

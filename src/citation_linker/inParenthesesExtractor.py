@@ -1,5 +1,5 @@
 import re
-from configLoad import config
+from .configLoad import config
 
 
 #spremeni tokne nazaj v originalni text, samo del ki potrebuje (znotraj ali tudi zunaj oklepajev)

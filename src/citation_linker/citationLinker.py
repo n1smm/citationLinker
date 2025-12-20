@@ -5,11 +5,11 @@ import  os
 import  argparse
 from    collections import  Counter
 
-sys.path.insert(0, "./src")
-import  textScreener
-from    bibliographyFinder import extract_authors_from_pdf
-from    configLoad import config, config_load
-from    referenceConnector import reference_connector
+from    citation_linker                     import  textScreener
+from    citation_linker.bibliographyFinder  import  extract_authors_from_pdf
+from    citation_linker.configLoad          import  config, config_load
+from    citation_linker.referenceConnector  import  reference_connector
+from    citation_linker.configPaths         import  resolve_config_path 
 
 import  pdb;
 
@@ -46,6 +46,7 @@ def args_parser():
                         )
     parser.add_argument("--start-page", type=int, default=1, help="zacetna stran (default = 1)")
     parser.add_argument("--end-page", type=int, help="koncna stran (default = zadnja stran dokumenta)")
+    parser.add_argument("--config", help="path do .config datoteke")
     args = parser.parse_args()
     return args
 
@@ -67,8 +68,9 @@ def args_parser():
     # - page
 #uporaba: citationLinker.py --help
 def main():
-    config_load()
     args = args_parser()
+    config_path = resolve_config_path(args.config)
+    config_load(config_path)
     file_name = args.file_name
     authors_delimiter = args.bibliography_delimiter
     doc = pymupdf.open(file_name)

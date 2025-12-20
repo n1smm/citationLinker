@@ -3,11 +3,11 @@ import  sys
 import  os
 from    collections import  Counter
 
-sys.path.insert(0, "./src")
-import  textScreener
-from    bibliographyFinder import extract_authors_from_pdf
-from    configLoad import config, config_load
-from    referenceConnector import reference_connector
+from    citation_linker                     import  textScreener
+from    citation_linker.bibliographyFinder  import  extract_authors_from_pdf
+from    citation_linker.configLoad          import  config, config_load
+from    citation_linker.referenceConnector  import  reference_connector
+from    citation_linker.configPaths         import  resolve_config_path 
 
 
 # poisce na kateri strani se zacne literatura
@@ -33,7 +33,8 @@ def print_lines_info(lines_info):
     print ("page counts: ", page_counts)
 
 def main():
-    config_load()
+    config_path = resolve_config_path()
+    config_load(config_path)
     input_dir = "input"
     authors_delimiters = config['BIBLIOGRAPHY_DELIMITER']
     for file in os.listdir(input_dir):

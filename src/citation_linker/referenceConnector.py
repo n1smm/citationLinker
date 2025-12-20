@@ -1,7 +1,7 @@
 import  pymupdf
 import  re
-from    configLoad import config
-from    utils import year_span_match
+from    .configLoad import config
+from    .utils import year_span_match
 
 # iskanje bliznjih zadetkov, tako lahko deluje tudi z zelo preprostim sklanjanjem
 # ali razliki v velikih zacetnicah

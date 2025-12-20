@@ -1,8 +1,8 @@
 import pymupdf
 import re
-from inParenthesesExtractor import check_in_parentheses
-from configLoad import config
-from utils import years_span_parser, soft_year_expand, years_sort, alternative_names_concat
+from .inParenthesesExtractor import check_in_parentheses
+from .configLoad import config
+from .utils import years_span_parser, soft_year_expand, years_sort, alternative_names_concat
 
 # Preveri posebne primere iz konfiguracije
 def check_special_case(author_token, page, page_idx):
