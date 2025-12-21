@@ -10,12 +10,11 @@ from    pathlib     import  Path
 
 
 
-sys.path.insert(0, "./src")
 from    citation_linker.textScreener        import  screen_text
 from    citation_linker.bibliographyFinder  import  extract_authors_from_pdf
 from    citation_linker.configLoad          import  config, config_load
 from    citation_linker.referenceConnector  import  reference_connector
-from    citation_linker.configPaths         import  resolve_config_path 
+from    citation_linker.configPaths         import  resolve_config_path, resolve_dir_paths 
 from    citation_linker.debugUtils          import  (print_references_info,
                                                      print_bibliography_info,
                                                      print_delimiter_info,
@@ -110,8 +109,10 @@ def merge_linked_parts(linked_parts, file_name, output_dir):
 
 def main():
     config_path = resolve_config_path()
+    io_dirs = resolve_dir_paths()
+    print("IO dirs:", io_dirs)
     config_load(config_path)
-    input_dir = "input"
+    input_dir = io_dirs["input"]
     authors_delimiters = config['BIBLIOGRAPHY_DELIMITER']
     try:
         src_file = os.listdir(input_dir)[0]
@@ -120,9 +121,9 @@ def main():
     except (IndexError, FileNotFoundError) as e:
         print(f"error: {e}")
         return
-    tmp_dir = "tmp_multi"
-    out_dir = "output"
-    tmp_output_dir = "tmp_output"
+    tmp_dir = io_dirs["input"].with_name(io_dirs["input"].name + "_multi")
+    out_dir = io_dirs["output"]
+    tmp_output_dir = io_dirs["output"].with_name(io_dirs["output"].name + "_tmp")
     os.makedirs(tmp_dir, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(tmp_output_dir, exist_ok=True)

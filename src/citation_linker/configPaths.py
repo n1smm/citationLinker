@@ -55,11 +55,13 @@ def show_active_paths():
     active_in = active_dir(True)
     active_out = active_dir(False)
 
-    return {
-            "config": active_file,
-            "input" : active_in,
-            "output" : active_out
-            }
+    paths = {
+                 "config": active_file,
+                 "input" : active_in,
+                 "output" : active_out
+             }
+
+    return {key: value for key, value in paths.items() if value and value.exists()}
 
 
 def resolve_config_path(cli_config=None):
@@ -95,7 +97,7 @@ def resolve_config_path(cli_config=None):
     return user_config
 
 
-def resolve_dir_paths(dirs):
+def resolve_dir_paths(dirs=None):
 
     active_in = active_dir(True)
     active_out = active_dir(False)
@@ -135,8 +137,11 @@ def resolve_dir_paths(dirs):
 
     if not default_in.exists():
         default_in.mkdir(parents=True, exist_ok=True)
+    active_dir(True).write_text(str(default_in))
+        
     if not default_out.exists():
         default_out.mkdir(parents=True, exist_ok=True)
+    active_dir(False).write_text(str(default_out))
     return {
             "input" : default_in,
             "output" : default_out

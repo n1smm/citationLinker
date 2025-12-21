@@ -1,7 +1,9 @@
 import  argparse
-from    citation_linker.configPaths         import  resolve_config_path, resolve_dir_paths, show_active_paths
+from    importlib.resources         import files
+from    citation_linker.configPaths import  resolve_config_path, resolve_dir_paths, show_active_paths
 
 
+# za spreminajanje poti iz kjer se bere .config in ali input output dir
 def args_parser():
     parser = argparse.ArgumentParser(description="poti/path do config in ostalo")
     parser.add_argument("--config", help="path do .config datoteke npr ./.config")
@@ -19,14 +21,31 @@ def main():
             "output": args.output
             }
 
-    config_path = resolve_config_path(args.config)
-    io_paths = resolve_dir_paths(dirs)
-    all_paths = show_active_paths()
+    if args.config:
+        config_path = resolve_config_path(args.config)
+        print("config_path spremenjen v: ", str(config_path))
+        print("----")
 
-    print("config_path spremenjen v: ", config_path)
-    print("io paths: ", io_paths)
+    if args.input or args.output:
+        io_paths = resolve_dir_paths(dirs)
+        for path, value in io_paths.items():
+            print(f"{path} dir: {value}")
+            print("----")
 
-    print("all_paths: ", all_paths)
+    if args.list:
+        all_paths = show_active_paths()
+        for path, value in all_paths.items():
+            if path == "config":
+                print(f"{path} {'path location file:':<25} {value}")
+                print(f"{path} {'location:':<25} {value.read_text().strip()}")
+                print("----")
+
+            else:
+                print(f"{path:<5} {'dir:':<25} {value}")
+                print(f"{path} {'location:':<25} {value.read_text().strip()}")
+                print("----")
+
+
 
 
 if __name__ == "__main__":
