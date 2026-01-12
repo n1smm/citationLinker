@@ -41,8 +41,8 @@ def main():
                 print("----")
 
             else:
-                print(f"{path:<5} {'dir:':<25} {value}")
-                print(f"{path} {'location:':<25} {value.read_text().strip()}")
+                print(f"{path:<5} {'location:':<25} {value}")
+                print(f"{path} {'dir:':<25} {value.read_text().strip()}")
                 print("----")
 
 
