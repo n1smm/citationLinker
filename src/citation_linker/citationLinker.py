@@ -68,30 +68,39 @@ def args_parser():
     # - page
 #uporaba: citationLinker.py --help
 def main():
-    args = args_parser()
-    config_path = resolve_config_path(args.config)
-    config_load(config_path)
-    file_name = args.file_name
-    authors_delimiter = args.bibliography_delimiter
-    doc = pymupdf.open(file_name)
-    authors_page = find_delimiting_page(authors_delimiter, doc)
-    # pdb.set_trace()
-    authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-    # print_lines_info(authors_info)
-    references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
-    refs_found = reference_connector(authors_info, references_info, doc)
+    try:
+        args = args_parser()
+        config_path = resolve_config_path(args.config)
+        config_load(config_path)
+        file_name = args.file_name
+        authors_delimiter = args.bibliography_delimiter
+        doc = pymupdf.open(file_name)
+        authors_page = find_delimiting_page(authors_delimiter, doc)
+        if authors_page == -1:
+            print(f"Error: Bibliography delimiter '{authors_delimiter}' not found in document")
+            doc.close()
+            sys.exit(1)
+        # pdb.set_trace()
+        authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
+        # print_lines_info(authors_info)
+        references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
+        refs_found = reference_connector(authors_info, references_info, doc)
 
-    #naredi nov file z narejenimi povezavami, orginal ostane isti
-    output_dir = "output"
-    os.makedirs(output_dir, exist_ok=True)
-    base, ext = os.path.splitext(os.path.basename(file_name))
-    output_filename = base + "_linked" + ext
-    output_path = os.path.join(output_dir, output_filename)
-    doc.save(output_path)
-    doc.close()
-    print("num refs found: ", refs_found)
-    print("#####################")
-    print("dokument je uspesno povezan, najde se v " + output_path)
+        #naredi nov file z narejenimi povezavami, orginal ostane isti
+        output_dir = "output"
+        os.makedirs(output_dir, exist_ok=True)
+        base, ext = os.path.splitext(os.path.basename(file_name))
+        output_filename = base + "_linked" + ext
+        output_path = os.path.join(output_dir, output_filename)
+        doc.save(output_path)
+        doc.close()
+        print("num refs found: ", refs_found)
+        print("#####################")
+        print("dokument je uspesno povezan, najde se v " + output_path)
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error during linking process: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

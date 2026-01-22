@@ -108,73 +108,79 @@ def merge_linked_parts(linked_parts, file_name, output_dir):
 
 
 def main():
-    config_path = resolve_config_path()
-    io_dirs = resolve_dir_paths()
-    print("IO dirs:", io_dirs)
-    config_load(config_path)
-    input_dir = io_dirs["input"]
-    authors_delimiters = config['BIBLIOGRAPHY_DELIMITER']
     try:
-        src_file = os.listdir(input_dir)[0]
-        src_file_name = os.path.join(input_dir,src_file)
-        print(src_file_name)
-    except (IndexError, FileNotFoundError) as e:
-        print(f"error: {e}")
-        return
-    tmp_dir = io_dirs["input"].with_name(io_dirs["input"].name + "_multi")
-    out_dir = io_dirs["output"]
-    tmp_output_dir = io_dirs["output"].with_name(io_dirs["output"].name + "_tmp")
-    os.makedirs(tmp_dir, exist_ok=True)
-    os.makedirs(out_dir, exist_ok=True)
-    os.makedirs(tmp_output_dir, exist_ok=True)
-    doc = pymupdf.open(src_file_name)
-    parts = split_into_parts(doc, config['ARTICLE_BREAKS'], tmp_dir, src_file_name)
-    doc.close()
-    linked_parts = []
+        config_path = resolve_config_path()
+        io_dirs = resolve_dir_paths()
+        print("IO dirs:", io_dirs)
+        config_load(config_path)
+        input_dir = io_dirs["input"]
+        authors_delimiters = config['BIBLIOGRAPHY_DELIMITER']
+        try:
+            src_file = os.listdir(input_dir)[0]
+            src_file_name = os.path.join(input_dir,src_file)
+            print(src_file_name)
+        except (IndexError, FileNotFoundError) as e:
+            print(f"error: {e}")
+            sys.exit(1)
+        tmp_dir = io_dirs["input"].with_name(io_dirs["input"].name + "_multi")
+        out_dir = io_dirs["output"]
+        tmp_output_dir = io_dirs["output"].with_name(io_dirs["output"].name + "_tmp")
+        os.makedirs(tmp_dir, exist_ok=True)
+        os.makedirs(out_dir, exist_ok=True)
+        os.makedirs(tmp_output_dir, exist_ok=True)
+        doc = pymupdf.open(src_file_name)
+        parts = split_into_parts(doc, config['ARTICLE_BREAKS'], tmp_dir, src_file_name)
+        doc.close()
+        linked_parts = []
 
-    for part in parts:
-        print("#####################")
-        if not part["isRange"]:
+        for part in parts:
+            print("#####################")
+            if not part["isRange"]:
+                file_name = part["path"]
+                doc = pymupdf.open(file_name)
+                base, ext = os.path.splitext(os.path.basename(file_name))
+                output_filename = base + "_linked" + ext
+                output_path = os.path.join(tmp_output_dir, output_filename)
+                doc.save(output_path)
+                doc.close()
+                linked_parts.append(output_path)
+                print("gap_file output name: ", output_path)
+                continue
             file_name = part["path"]
+            print("file name: ", file_name)
             doc = pymupdf.open(file_name)
+            authors_page, authors_delimiter = find_delimiting_page(authors_delimiters, doc)
+            if authors_page == -1 or authors_delimiter == -1:
+                print("nepravilen BIBLIOGRAPHY_DELIMITER za dokument:", file_name)
+                print("authors delimiter: " , authors_delimiter, " authors page: ", authors_page)
+                doc.close()
+                sys.exit(1)
+
+            authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
+            references_info = screen_text(doc, authors_page, authors_delimiter)
+            if config['DEBUG'][0] == "True":
+                print_bibliography_info(authors_info)
+                print_references_info(references_info)
+                pass
+
+            reference_connector(authors_info, references_info, doc)
+
+            #naredi nov file z narejenimi povezavami, original ostane isti
             base, ext = os.path.splitext(os.path.basename(file_name))
             output_filename = base + "_linked" + ext
             output_path = os.path.join(tmp_output_dir, output_filename)
+            linked_parts.append(output_path)
             doc.save(output_path)
             doc.close()
-            linked_parts.append(output_path)
-            print("gap_file output name: ", output_path)
-            continue
-        file_name = part["path"]
-        print("file name: ", file_name)
-        doc = pymupdf.open(file_name)
-        authors_page, authors_delimiter = find_delimiting_page(authors_delimiters, doc)
-        if authors_page == -1 or authors_delimiter == -1:
-            print("nepravilen BIBLIOGRAPHY_DELIMITER za dokument:", file_name)
-            print("authors delimiter: " , authors_delimiter, " authors page: ", authors_page)
-            return -1
-
-        authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-        references_info = screen_text(doc, authors_page, authors_delimiter)
-        if config['DEBUG'][0] == "True":
-            print_bibliography_info(authors_info)
-            print_references_info(references_info)
-            pass
-
-        reference_connector(authors_info, references_info, doc)
-
-        #naredi nov file z narejenimi povezavami, original ostane isti
-        base, ext = os.path.splitext(os.path.basename(file_name))
-        output_filename = base + "_linked" + ext
-        output_path = os.path.join(tmp_output_dir, output_filename)
-        linked_parts.append(output_path)
-        doc.save(output_path)
-        doc.close()
-        print("dokument je uspesno povezan, " + output_path)
-        print("#####################")
-    merge_linked_parts(linked_parts, src_file, out_dir)
-    shutil.rmtree(tmp_dir)
-    shutil.rmtree(tmp_output_dir)
+            print("dokument je uspesno povezan, " + output_path)
+            print("#####################")
+        merge_linked_parts(linked_parts, src_file, out_dir)
+        shutil.rmtree(tmp_dir)
+        shutil.rmtree(tmp_output_dir)
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error during linking process: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
