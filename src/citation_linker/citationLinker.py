@@ -79,7 +79,7 @@ def main():
         if authors_page == -1:
             print(f"Error: Bibliography delimiter '{authors_delimiter}' not found in document")
             doc.close()
-            sys.exit(1)
+            return 1
         # pdb.set_trace()
         authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
         # print_lines_info(authors_info)
@@ -97,11 +97,11 @@ def main():
         print("num refs found: ", refs_found)
         print("#####################")
         print("dokument je uspesno povezan, najde se v " + output_path)
-        sys.exit(0)
+        return 0
     except Exception as e:
         print(f"Error during linking process: {e}")
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 

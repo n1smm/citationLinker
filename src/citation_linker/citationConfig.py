@@ -1,6 +1,6 @@
 import  argparse
 from    importlib.resources         import files
-from    citation_linker.configPaths import  resolve_config_path, resolve_dir_paths, show_active_paths
+from    citation_linker.configPaths import  resolve_config_path, resolve_dir_paths, show_active_paths, ensure_defaults
 
 
 # za spreminajanje poti iz kjer se bere .config in ali input output dir
@@ -15,6 +15,7 @@ def args_parser():
     return args
 
 def main():
+    ensure_defaults()
     args = args_parser()
     dirs = {
             "input": args.input,
@@ -37,12 +38,12 @@ def main():
         for path, value in all_paths.items():
             if path == "config":
                 print(f"{path} {'path location file:':<25} {value}")
-                print(f"{path} {'location:':<25} {value.read_text().strip()}")
+                print(f"{path} {'location:':<25} {value.read_text(encoding='utf-8').strip()}")
                 print("----")
 
             else:
                 print(f"{path:<5} {'location:':<25} {value}")
-                print(f"{path} {'dir:':<25} {value.read_text().strip()}")
+                print(f"{path} {'dir:':<25} {value.read_text(encoding='utf-8').strip()}")
                 print("----")
 
 

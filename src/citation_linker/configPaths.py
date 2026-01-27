@@ -5,6 +5,27 @@ import sys
 
 APP_NAME = "citation-linker"
 
+def ensure_defaults():
+    """ sets the defaults if not present """
+    # Ensure user config directory exists
+    print(" ENSURE DEFAULTS FUNC ")
+    config_dir = user_config_dir()
+    print("config_dir", config_dir)
+    
+    # Ensure default input/output directories exist
+    for is_input in (True, False):
+        dir_path = Path(default_dir(is_input)).expanduser().resolve()
+        if not dir_path.exists():
+            dir_path.mkdir(parents=True, exist_ok=True)
+    
+    # Ensure user config file exists
+    user_config = config_dir / "user.config"
+    if not user_config.exists():
+        user_config.write_text(default_config_path().read_text(encoding='utf-8'), encoding='utf-8')
+    print ("user config: ", user_config)
+    print("=========================")
+
+
 def user_config_dir():
     """
     Returns the per-user configuration directory for this app.
@@ -38,10 +59,15 @@ def active_dir(input):
         return user_config_dir() / ".active_output_dir"
 
 def default_dir(input):
+    """
+    Returns the default input/output directory path.
+    Uses subdirectories within the app config folder for cross-platform compatibility.
+    """
+    config_base = user_config_dir()
     if input:
-        return "./input"
+        return str(config_base / "input")
     else:
-        return "./output"
+        return str(config_base / "output")
 
 def default_config_path():
     """
@@ -80,20 +106,20 @@ def resolve_config_path(cli_config=None):
         config_path = Path(cli_config).expanduser().resolve()
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
-        active_file.write_text(str(config_path))
+        active_file.write_text(str(config_path), encoding='utf-8')
         return config_path
 
     # aktiven path, ki je bil ze dodeljen
     if active_file.exists():
-        saved_path = Path(active_file.read_text().strip())
+        saved_path = Path(active_file.read_text(encoding='utf-8').strip())
         if saved_path.exists():
             return saved_path
 
     # default path iz paketa
     user_config = user_config_dir() / "user.config"
     if not user_config.exists():
-        user_config.write_text(default_config_path().read_text())
-    active_file.write_text(str(user_config))
+        user_config.write_text(default_config_path().read_text(encoding='utf-8'), encoding='utf-8')
+    active_file.write_text(str(user_config), encoding='utf-8')
     return user_config
 
 
@@ -111,10 +137,10 @@ def resolve_dir_paths(dirs=None):
         if dirs["output"]:
             output = Path(dirs["output"]).expanduser().resolve()
         if input and input.exists():
-            active_dir(True).write_text(str(input))
+            active_dir(True).write_text(str(input), encoding='utf-8')
             dir_paths["input"] = input
         if output and output.exists():
-            active_dir(False).write_text(str(output))
+            active_dir(False).write_text(str(output), encoding='utf-8')
             dir_paths["output"] = output
         else:
             raise FileNotFoundError(f"path for input and/or output dirs don't exist, in: {input}, out: {output}")
@@ -122,11 +148,11 @@ def resolve_dir_paths(dirs=None):
 
     active_dirs = {}
     if active_in.exists():
-        saved_path = Path(active_in.read_text().strip())
+        saved_path = Path(active_in.read_text(encoding='utf-8').strip())
         if saved_path.exists():
             active_dirs["input"] = saved_path
     if active_out.exists():
-        saved_path = Path(active_out.read_text().strip())
+        saved_path = Path(active_out.read_text(encoding='utf-8').strip())
         if saved_path.exists():
             active_dirs["output"] = saved_path
     if active_dirs:
@@ -137,11 +163,11 @@ def resolve_dir_paths(dirs=None):
 
     if not default_in.exists():
         default_in.mkdir(parents=True, exist_ok=True)
-    active_dir(True).write_text(str(default_in))
+    active_dir(True).write_text(str(default_in), encoding='utf-8')
         
     if not default_out.exists():
         default_out.mkdir(parents=True, exist_ok=True)
-    active_dir(False).write_text(str(default_out))
+    active_dir(False).write_text(str(default_out), encoding='utf-8')
     return {
             "input" : default_in,
             "output" : default_out

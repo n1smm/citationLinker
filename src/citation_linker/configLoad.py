@@ -24,7 +24,7 @@ def config_color():
     
 #load moznosti iz .config file-a v config strukturo
 def config_load(config_path):
-    with config_path.open("r") as file:
+    with config_path.open("r", encoding='utf-8') as file:
         for line in file:
             if '=' in line and not line.strip().startswith('#'):
                 if "ARTICLE_BREAKS" in line:

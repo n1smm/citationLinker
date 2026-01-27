@@ -48,7 +48,7 @@ def main():
             if authors_page == -1 or authors_delimiter == -1:
                 print("nepravilen BIBLIOGRAPHY_DELIMITER za dokument:", file_name)
                 doc.close()
-                sys.exit(1)
+                return 1
 
             authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
             # print_lines_info(authors_info)
@@ -65,11 +65,12 @@ def main():
             doc.close()
             print("dokument je uspesno povezan, najde se v " + output_path)
             print("#####################")
-        sys.exit(0)
+        return 0
     except Exception as e:
         print(f"Error during linking process: {e}")
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
+

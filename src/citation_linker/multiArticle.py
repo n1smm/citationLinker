@@ -121,7 +121,7 @@ def main():
             print(src_file_name)
         except (IndexError, FileNotFoundError) as e:
             print(f"error: {e}")
-            sys.exit(1)
+            return 1
         tmp_dir = io_dirs["input"].with_name(io_dirs["input"].name + "_multi")
         out_dir = io_dirs["output"]
         tmp_output_dir = io_dirs["output"].with_name(io_dirs["output"].name + "_tmp")
@@ -154,7 +154,7 @@ def main():
                 print("nepravilen BIBLIOGRAPHY_DELIMITER za dokument:", file_name)
                 print("authors delimiter: " , authors_delimiter, " authors page: ", authors_page)
                 doc.close()
-                sys.exit(1)
+                return 1
 
             authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
             references_info = screen_text(doc, authors_page, authors_delimiter)
@@ -177,11 +177,10 @@ def main():
         merge_linked_parts(linked_parts, src_file, out_dir)
         shutil.rmtree(tmp_dir)
         shutil.rmtree(tmp_output_dir)
-        sys.exit(0)
+        return 0
     except Exception as e:
         print(f"Error during linking process: {e}")
-        sys.exit(1)
-
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
