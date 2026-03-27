@@ -101,7 +101,13 @@ def soft_year_match(author, ref):
     return False
 
 # ce najde ujemanje, pripravi linkanje citata z literaturo
-def process_reference_match(ref, author, doc, config):
+def process_reference_match(ref, author, doc, config, ctx=None, article_start_page=0):
+    # posodobi kontekst glede na stran reference (ki je lokalna 0-based stran)
+    if ctx:
+        ref_local_page = int(ref["page"])
+        ctx.page_in_article = ref_local_page + 1
+        ctx.page_in_doc = article_start_page + ref_local_page + 1
+    
     num_ref_found = 1
     curr_page = int(ref["page"])
     ref_rects = (ref["position"] if isinstance(ref["position"], list)
@@ -138,10 +144,16 @@ def process_reference_match(ref, author, doc, config):
     return num_ref_found, last_link
 
 # poveze literaturo z navajanji v tekstu in doda goto povezave (hyperlinke)
-def reference_connector(authors_info, references_info, doc):
+def reference_connector(authors_info, references_info, doc, ctx=None, article_start_page=0):
     last_link = None
     num_ref_found = 0
     for ref  in references_info:
+        # posodobi kontekst glede na stran reference (lokalna 0-based stran)
+        if ctx:
+            ref_local_page = int(ref["page"])
+            ctx.page_in_article = ref_local_page + 1
+            ctx.page_in_doc = article_start_page + ref_local_page + 1
+        
         # preskoči iskanje v bibliografiji za posebne primere
         if ref["surname"] == "special_case":
             # posebni primer bo obdelan spodaj
@@ -153,7 +165,7 @@ def reference_connector(authors_info, references_info, doc):
                 # potem poisce ce se ujema tudi avtor
                 if author["year"] and ref["year"] in author["year"]:
                     if is_author_match(ref, author):
-                        nrf, last_link = process_reference_match(ref, author, doc, config)
+                        nrf, last_link = process_reference_match(ref, author, doc, config, ctx, article_start_page)
                         num_ref_found += nrf
                         logger.debug(f"Matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
                         # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
@@ -163,7 +175,7 @@ def reference_connector(authors_info, references_info, doc):
                     #logika za dodatno ujemanje
                     if is_author_match(ref, author):
                         if soft_year_match(author, ref):
-                            nrf, last_link = process_reference_match(ref, author, doc, config)
+                            nrf, last_link = process_reference_match(ref, author, doc, config, ctx, article_start_page)
                             num_ref_found += nrf
                             logger.debug(f"Soft-matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
                             # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
@@ -195,4 +207,10 @@ def reference_connector(authors_info, references_info, doc):
                     annot = page.add_highlight_annot(rect)
                 annot.set_colors({"stroke":config['STROKE']})
                 annot.update()
+    
+    # resetiraj kontekst na stanje na nivoju clanka preden vrnes rezultat
+    if ctx:
+        ctx.page_in_article = None
+        ctx.page_in_doc = article_start_page + 1
+    
     return (num_ref_found)

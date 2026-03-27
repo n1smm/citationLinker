@@ -153,7 +153,12 @@ def split_info(ref, author_token, page_idx, page, last_ref):
 # TODO - ce je outside_name ampak notri razdeljeno z ; pomeni da so vse letnice isti avtor
 # reference iz temp_refs, ki so drugacne za vsako stran, jih prenese v references_info
 # se z nekaj dodatnimi informacijami
-def add_info_to_references(temp_refs, page, page_idx, references_info):
+def add_info_to_references(temp_refs, page, page_idx, references_info, ctx=None, article_start_page=0):
+    # posodobi kontekst za trenutno stran
+    if ctx:
+        ctx.page_in_article = page_idx + 1  # 1-based local page
+        ctx.page_in_doc = article_start_page + page_idx + 1  # 1-based global page
+    
     for ref in temp_refs:
         text = ref["text"]
         author_tokens = []
@@ -173,25 +178,40 @@ def add_info_to_references(temp_refs, page, page_idx, references_info):
 # precesa celoten tekst in izbere dele k bi lahko bili reference,
 # zakljuci ko pride do virov
 # TODO precesaj se zadnjo stran pred literaturo
-def screen_text(doc, page_idx, delimiter):
+def screen_text(doc, page_idx, delimiter, ctx=None, article_start_page=0):
 
     references_info = []
 
     for i in range(0, page_idx + 1):
+        # posodobi kontekst za trenutno stran
+        if ctx:
+            ctx.page_in_article = i + 1  # 1-based local page
+            ctx.page_in_doc = article_start_page + i + 1  # 1-based global page
+        
         page = doc[i]
         text = page.get_text()
         temp_refs = check_in_parentheses(text) #inParenthesesExtractor.py
-        add_info_to_references(temp_refs, page, i, references_info)
+        add_info_to_references(temp_refs, page, i, references_info, ctx, article_start_page)
         if i == page_idx:
             break
     #sprocesiraj se zadnjo stran do literature
+    if ctx:
+        ctx.page_in_article = page_idx + 1
+        ctx.page_in_doc = article_start_page + page_idx + 1
+    
     page = doc[page_idx]
     text = page.get_text()
     delimiter_index = text.find(delimiter)
     if delimiter_index != -1:
         text = text[:delimiter_index]
     temp_refs = check_in_parentheses(text) #inParenthesesExtractor.py
-    add_info_to_references(temp_refs, page, page_idx, references_info)
+    add_info_to_references(temp_refs, page, page_idx, references_info, ctx, article_start_page)
+    
+    # resetiraj kontekst na stanje na nivoju clanka preden vrnes rezultat
+    if ctx:
+        ctx.page_in_article = None
+        ctx.page_in_doc = article_start_page + 1
+    
     return references_info
 
     

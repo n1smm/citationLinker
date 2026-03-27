@@ -199,12 +199,13 @@ def main():
                     doc.close()
                     continue
 
-                authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
-                references_info = screen_text(doc, authors_page, authors_delimiter)
-                print_bibliography_info(authors_info)
-                print_references_info(references_info)
+                # pass ctx and article_start_page to all helper functions
+                authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter, ctx, article_start_page)
+                references_info = screen_text(doc, authors_page, authors_delimiter, ctx, article_start_page)
+                print_bibliography_info(authors_info, ctx, article_start_page)
+                print_references_info(references_info, ctx, article_start_page)
 
-                reference_connector(authors_info, references_info, doc)
+                reference_connector(authors_info, references_info, doc, ctx, article_start_page)
 
                 #naredi nov file z narejenimi povezavami, original ostane isti
                 base, ext = os.path.splitext(os.path.basename(file_name))
