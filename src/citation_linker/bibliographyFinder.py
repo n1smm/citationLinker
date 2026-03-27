@@ -1,9 +1,11 @@
 import  pymupdf
 import  re
 
-import  pdb
 from    .utils       import years_span_parser, soft_year_expand, alternative_names_concat
 from    .configLoad  import config
+from    .appLogger   import get_logger
+
+logger = get_logger()
 
 
 # viri ki imajo strukturo tako: leto. naslov npr:(1964. Slovenska matica)
@@ -25,7 +27,7 @@ def find_sources_year_dot_work(line_info):
         if years_span_pattern.search(token.strip()):
             years = years_span_parser(token.strip(), years)
             year_span = f"{years[0]}-{years[-1]}" if len(years) > 1 else "yyy"
-            # print(f"year_span is :{year_span}")
+            logger.debug(f"Year span found: {year_span}")
         others.append(token.strip())
 
     if year == "yyy" and not years:
@@ -107,14 +109,9 @@ def find_starting_lines_authors(line_info):
             year_span = f"{years[0]}-{years[-1]}" if len(years) > 1 else "yyy"
         else:
             return False
-    # if token_count < len(tokens) and not ":" in text:
-    #     print(tokens[token_count])
-    #     year = tokens[token_count].split()[0]
-    # elif token_count < len(tokens) and ":" in text:
-    #     print(tokens[token_count])
-    #     year = tokens[len(tokens) - 1].split()[0]
-    # else:
-    #     return False
+    
+    # commented out debugging code - not needed
+    # logger.debug(f"Processing bibliography year parsing: year_span={year_span}")
 
     if not others:
         others = ["yyy"]

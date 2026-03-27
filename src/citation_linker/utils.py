@@ -83,17 +83,11 @@ def alternative_names_concat(text):
     #ce je ' v textu
     if re.search(r" ['’`]|['’`] ", text):
     # if " '" in text or "' " in text:
-        if "haen" in text:
-            print("###")
-            print("haen with ' space")
         text = normalize_apostrophe(text, 0)
         tokens = text.split()
         others.extend([t for t in tokens if "'" in t])
     elif re.search(r"['’`]", text):
     # elif "'" in text:
-        if "haen" in text:
-            print("###")
-            print("haen with '")
         tokens = text.split()
         for t in tokens:
             if re.search(r"['’`]", t):
@@ -109,10 +103,5 @@ def alternative_names_concat(text):
     tokens = [t for t in text.split() if t and t[0].isupper()]
     if tokens and len(tokens) > 1:
         others.extend([t for t in tokens if t and t[0].isupper()])
-
-    if "haen" in text:
-        print(f" haen text: {text}")
-        print(others)
-        print("---")
 
     return others
