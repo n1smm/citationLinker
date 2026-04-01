@@ -1,7 +1,5 @@
 from    pathlib import Path
-from    citation_linker.appLogger import get_logger
 
-logger = get_logger()
 
 #shranjene moznosti iz .config file-a
 config = {}
@@ -66,4 +64,7 @@ def config_load(config_path):
         config['DEBUG'] = ['False']
     if  'ALTERNATIVE_BIB' not in config or not config['ALTERNATIVE_BIB']:
         config['ALTERNATIVE_BIB'] = ['False']
-    logger.debug(f"Configuration loaded: {config}")
+    if config.get("UI", ["False"])[0] == "True":
+        from    citation_linker.appLogger import get_logger
+        logger = get_logger()
+        logger.debug(f"Configuration loaded: {config}")

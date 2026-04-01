@@ -119,18 +119,21 @@ def merge_linked_parts(linked_parts, file_name, output_dir):
 
 def main():
     try:
+        
+        # preberi config file
+        config_path = resolve_config_path()
+        io_dirs = resolve_dir_paths()
+        config_load(config_path)
+
         # inicializacija loggerja in konteksta za clanke
         logger = get_logger()
         ctx = ArticleContext()
         logger.addFilter(ctx)
-        
-        config_path = resolve_config_path()
-        io_dirs = resolve_dir_paths()
+
         logger.info(f"IO dirs: {io_dirs}")
-        config_load(config_path)
         
         # nastavi nivo logiranja glede na DEBUG flag
-        if config.get('DEBUG', ['False'])[0] == 'True':
+        if config["DEBUG"][0] == "True":
             logger.setLevel(logging.DEBUG)
         else:
             logger.setLevel(logging.INFO)
