@@ -10,6 +10,7 @@ from    citation_linker.bibliographyFinder  import  extract_authors_from_pdf
 from    citation_linker.configLoad          import  config, config_load
 from    citation_linker.referenceConnector  import  reference_connector
 from    citation_linker.configPaths         import  resolve_config_path 
+from    citation_linker.io_safe             import  atomic_replace_save, normalize_path, FileLockError
 
 import  pdb;
 
@@ -72,7 +73,7 @@ def main():
         args = args_parser()
         config_path = resolve_config_path(args.config)
         config_load(config_path)
-        file_name = args.file_name
+        file_name = str(normalize_path(args.file_name))
         authors_delimiter = args.bibliography_delimiter
         doc = pymupdf.open(file_name)
         authors_page = find_delimiting_page(authors_delimiter, doc)
@@ -87,21 +88,23 @@ def main():
         refs_found = reference_connector(authors_info, references_info, doc)
 
         #naredi nov file z narejenimi povezavami, orginal ostane isti
-        output_dir = "output"
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir = normalize_path("output")
+        output_dir.mkdir(parents=True, exist_ok=True)
         base, ext = os.path.splitext(os.path.basename(file_name))
         output_filename = base + "_linked" + ext
-        output_path = os.path.join(output_dir, output_filename)
-        doc.save(output_path)
+        output_path = output_dir / output_filename
+        atomic_replace_save(output_path, lambda temp_path: doc.save(temp_path))
         doc.close()
         print("num refs found: ", refs_found)
         print("#####################")
-        print("dokument je uspesno povezan, najde se v " + output_path)
+        print("dokument je uspesno povezan, najde se v " + str(output_path))
         return 0
+    except FileLockError as e:
+        print(f"Error: destination file is locked: {e}")
+        return 1
     except Exception as e:
         print(f"Error during linking process: {e}")
         return 1
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -141,8 +141,8 @@ def extract_authors_from_pdf(doc, page_idx, search_text, ctx=None, article_start
     while page_idx < len(doc):
         # posodobi kontekst za trenutno stran
         if ctx:
-            ctx.page_in_article = (page_idx - start_page_idx) + 1  # 1-based local page
-            ctx.page_in_doc = article_start_page + page_idx + 1  # 1-based global page
+            ctx.page_in_article = (page_idx - start_page_idx) + 1
+            ctx.page_in_doc = article_start_page + page_idx + 1
         
         page = doc[page_idx]
         for block in page.get_text("dict")["blocks"]:

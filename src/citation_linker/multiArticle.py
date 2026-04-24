@@ -1,7 +1,7 @@
 import  pymupdf
 import  sys
 import  os
-import  shutil
+import  argparse
 import  string
 import  math
 import  re
@@ -17,10 +17,11 @@ from    citation_linker.configLoad          import  config, config_load
 from    citation_linker.referenceConnector  import  reference_connector
 from    citation_linker.configPaths         import  resolve_config_path, resolve_dir_paths 
 from    citation_linker.appLogger           import  get_logger, ArticleContext
+from    citation_linker.io_safe             import  atomic_replace_save, safe_rmtree, normalize_path
 from    citation_linker.debugUtils          import  (print_references_info,
-                                                     print_bibliography_info,
-                                                     print_delimiter_info,
-                                                     preview_page_lines)
+                                                      print_bibliography_info,
+                                                      print_delimiter_info,
+                                                      preview_page_lines)
 
 
 # poisce na kateri strani se zacne literatura
@@ -63,7 +64,7 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
             tmp_doc = pymupdf.open()
             tmp_doc.insert_pdf(doc, from_page=gap_start, to_page=start_clamped -1)
             tmp_path = os.path.join(tmp_dir, f"{Path(src_path).stem}_part_{idx:02d}_gap.pdf")
-            tmp_doc.save(tmp_path)
+            atomic_replace_save(tmp_path, lambda temp_path: tmp_doc.save(temp_path))
             tmp_doc.close()
             tmp_part = {"path": tmp_path, "isRange":False, "start_page": gap_start, "end_page": start_clamped -1}
             parts.append(tmp_part)
@@ -78,7 +79,7 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
         # sprintaj par vrstic na prvi in zadnji strani
         first_page_text = doc.load_page(start_clamped).get_text().splitlines()[:5]
         last_page_text = doc.load_page(end_clamped).get_text().splitlines()[:5]
-        tmp_doc.save(tmp_path)
+        atomic_replace_save(tmp_path, lambda temp_path: tmp_doc.save(temp_path))
         tmp_doc.close()
         tmp_part = {"path": tmp_path, "isRange":True, "start_page": start_clamped, "end_page": end_clamped}
         parts.append(tmp_part)
@@ -92,7 +93,7 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
         tmp_doc = pymupdf.open()
         tmp_doc.insert_pdf(doc, from_page=gap_start, to_page=page_count -1)
         tmp_path = os.path.join(tmp_dir, f"{Path(src_path).stem}_part_final_gap.pdf")
-        tmp_doc.save(tmp_path)
+        atomic_replace_save(tmp_path, lambda temp_path: tmp_doc.save(temp_path))
         tmp_doc.close()
         tmp_part = {"path": tmp_path, "isRange":False, "start_page": gap_start, "end_page": page_count -1}
         parts.append(tmp_part)
@@ -112,12 +113,22 @@ def merge_linked_parts(linked_parts, file_name, output_dir):
     base, ext = os.path.splitext(os.path.basename(file_name))
     output_filename = base + "_linked" + ext
     output_path = os.path.join(output_dir, output_filename)
-    final.save(output_path)
+    atomic_replace_save(output_path, lambda temp_path: final.save(temp_path))
     final.close()
     logger.info(f"Saved merged final file: {output_path}")
 
+def args_parser():
+    parser = argparse.ArgumentParser(description="Link citations in a multi-article PDF.")
+    parser.add_argument(
+        "file_path",
+        nargs="?",
+        help="Optional path to source PDF. When omitted, source is taken from configured input directory.",
+    )
+    return parser.parse_args()
 
-def main():
+def main(source_file_path=None):
+    if source_file_path is None:
+        source_file_path = args_parser().file_path
     try:
         
         # preberi config file
@@ -138,11 +149,23 @@ def main():
         else:
             logger.setLevel(logging.INFO)
         
-        input_dir = io_dirs["input"]
+        input_dir = normalize_path(io_dirs["input"])
         authors_delimiters = config['BIBLIOGRAPHY_DELIMITER']
+
         try:
-            src_file = os.listdir(input_dir)[0]
-            src_file_name = os.path.join(input_dir,src_file)
+            if source_file_path:
+                src_path = normalize_path(source_file_path)
+                if not src_path.exists() or not src_path.is_file():
+                    raise FileNotFoundError(f"Input file not found: {src_path}")
+                src_file_name = str(src_path)
+                src_file = src_path.name
+            else:
+                source_candidates = sorted(
+                    file_name for file_name in os.listdir(input_dir)
+                    if os.path.isfile(os.path.join(input_dir, file_name))
+                )
+                src_file = source_candidates[0]
+                src_file_name = os.path.join(input_dir, src_file)
             logger.info(f"Source file: {src_file_name}")
         except (IndexError, FileNotFoundError) as e:
             logger.critical(f"Error finding input file: {e}")
@@ -176,7 +199,7 @@ def main():
                 base, ext = os.path.splitext(os.path.basename(file_name))
                 output_filename = base + "_linked" + ext
                 output_path = os.path.join(tmp_output_dir, output_filename)
-                doc.save(output_path)
+                atomic_replace_save(output_path, lambda temp_path: doc.save(temp_path))
                 doc.close()
                 linked_parts.append(output_path)
                 logger.info(f"Gap file output: {output_path}")
@@ -215,7 +238,7 @@ def main():
                 output_filename = base + "_linked" + ext
                 output_path = os.path.join(tmp_output_dir, output_filename)
                 linked_parts.append(output_path)
-                doc.save(output_path)
+                atomic_replace_save(output_path, lambda temp_path: doc.save(temp_path))
                 doc.close()
                 logger.info(f"Document successfully linked: {output_path}")
             except Exception as e:
@@ -226,8 +249,8 @@ def main():
             
             logger.info("=" * 60)
         merge_linked_parts(linked_parts, src_file, out_dir)
-        shutil.rmtree(tmp_dir)
-        shutil.rmtree(tmp_output_dir)
+        safe_rmtree(tmp_dir)
+        safe_rmtree(tmp_output_dir)
         return 0
     except Exception as e:
         logger.critical(f"Error during linking process: {e}", exc_info=True)
