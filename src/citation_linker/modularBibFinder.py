@@ -14,7 +14,7 @@ logger = get_logger()
 ### parser je sestavljen iz FE: npr <priimek> <separator:<,>> <ime> <separator:<,>> <extra char:<(,">> <leto> <extra char:<),">>
 ### kako je razdeljeno ko je vec avtorjev
 ### ko imamo ves teks, posljemo v tokenizer da razdeli dele, 
-"""
+r"""
 bib_structures = [
     [
         {"type": "Surname"},
@@ -90,7 +90,7 @@ def is_year_or_span(text):
     text = text.strip()
     if bool(year_span_pattern.search(text)):
         return "YEAR_SPAN"
-    elif bool(year_span_pattern.search(text)):
+    elif bool(year_search_pattern.search(text)):
         return "YEAR"
     return "IGNORE"
 
@@ -106,7 +106,6 @@ def is_separator_or_char(text, char_list=[","]):
 def find_separator_char(text, char_list=[","]):
     text = text.strip()
     idx = -1
-    text = ""
 
     for char in char_list:
         idx = text.find(char)
@@ -117,7 +116,7 @@ def find_separator_char(text, char_list=[","]):
 
         
 def validator_selector(text, typ_element):
-    typ = typ_element.get("TYPE") or "IGNORE"
+    typ = (typ_element.get("TYPE") or typ_element.get("type") or "IGNORE").upper()
     if typ == "SURNAME" and is_capitalized(text, all=True):
         return "SURNAME"
 
@@ -127,17 +126,104 @@ def validator_selector(text, typ_element):
     elif typ == "TITLE" and is_capitalized(text, all=False):
         return "TITLE"
 
-    elif typ == "EXTRA_CHAR" and is_separator_or_char(text, typ_element.get("OPTIONS", "")):
+    elif typ == "EXTRA_CHAR" and is_separator_or_char(text, typ_element.get("OPTIONS") or typ_element.get("options", "")):
         return "EXTRA_CHAR"
 
     elif typ == "YEAR":
         return is_year_or_span(text)
 
-    elif typ == "SEPARATOR" and is_separator_or_char(text, typ_element.get("OPTIONS", "")):
+    elif typ == "SEPARATOR" and is_separator_or_char(text, typ_element.get("OPTIONS") or typ_element.get("options", "")):
         return "SEPARATOR"
 
     else:
         return "IGNORE"
+
+
+def _normalize_structure_type(raw_type):
+    if not isinstance(raw_type, str):
+        return ""
+    normalized = raw_type.strip().replace("-", "_").replace(" ", "_").upper()
+    aliases = {
+        "SURNAME": "SURNAME",
+        "NAME": "NAME",
+        "TITLE": "TITLE",
+        "YEAR": "YEAR",
+        "SEPARATOR": "SEPARATOR",
+        "EXTRA_CHAR": "EXTRA_CHAR",
+        "EXTRACHAR": "EXTRA_CHAR",
+        "IGNORE": "IGNORE",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _normalize_options(raw_options):
+    if isinstance(raw_options, list):
+        return [opt.strip() for opt in raw_options if isinstance(opt, str) and opt.strip()]
+    if isinstance(raw_options, str):
+        return [opt.strip() for opt in raw_options.split(",") if opt.strip()]
+    return []
+
+
+def normalize_bib_structures(raw_bib_structures):
+    if not isinstance(raw_bib_structures, list) or not raw_bib_structures:
+        return []
+
+    if all(isinstance(struct, list) for struct in raw_bib_structures):
+        candidate_structures = raw_bib_structures
+    elif all(isinstance(elem, dict) for elem in raw_bib_structures):
+        candidate_structures = [raw_bib_structures]
+    else:
+        candidate_structures = [raw_bib_structures]
+
+    normalized_structures = []
+    for raw_struct in candidate_structures:
+        if not isinstance(raw_struct, list):
+            continue
+        normalized_struct = []
+        for raw_elem in raw_struct:
+            if isinstance(raw_elem, dict):
+                typ = _normalize_structure_type(raw_elem.get("type") or raw_elem.get("TYPE"))
+                if not typ:
+                    continue
+                elem = {"type": typ}
+                if typ in ("SEPARATOR", "EXTRA_CHAR"):
+                    options = _normalize_options(raw_elem.get("options") or raw_elem.get("OPTIONS"))
+                    if typ == "SEPARATOR" and not options:
+                        options = [","]
+                    elem["options"] = options
+                normalized_struct.append(elem)
+                continue
+
+            if not isinstance(raw_elem, str):
+                continue
+            token = raw_elem.strip()
+            if not token:
+                continue
+
+            if re.fullmatch(r"[^\w\s]+", token):
+                if normalized_struct and normalized_struct[-1].get("type") in ("SEPARATOR", "EXTRA_CHAR"):
+                    prev_options = normalized_struct[-1].setdefault("options", [])
+                    if token not in prev_options:
+                        prev_options.append(token)
+                continue
+
+            raw_type, raw_opts = (token.split(":", 1) + [""])[:2]
+            typ = _normalize_structure_type(raw_type)
+            if not typ:
+                continue
+
+            elem = {"type": typ}
+            if typ in ("SEPARATOR", "EXTRA_CHAR"):
+                options = _normalize_options(raw_opts)
+                if typ == "SEPARATOR" and not options:
+                    options = [","]
+                elem["options"] = options
+            normalized_struct.append(elem)
+
+        if normalized_struct:
+            normalized_structures.append(normalized_struct)
+
+    return normalized_structures
 
 
 
@@ -149,20 +235,26 @@ def validator_selector(text, typ_element):
 
 
 def line_has_author(line_text):
-    bib_structures = config.get("BIB_STRUCTURE", "")
+    bib_structures = normalize_bib_structures(config.get("BIB_STRUCTURE", ""))
+    if not bib_structures:
+        return False
     orig_line_text = line_text.strip()
 
     for struct in bib_structures:
+        if not isinstance(struct, list):
+            continue
         hits = 0
         line_text = orig_line_text
         for typ_element in struct:
-            typ = typ_element.get("type", "").upper()
+            if not isinstance(typ_element, dict):
+                continue
+            typ = (typ_element.get("type") or typ_element.get("TYPE") or "").upper()
             if (typ in ("SURNAME", "NAME", "TITLE")
                 and line_text and line_text[0].isupper()):
                 hits += 1
                 
             elif typ in ("SEPARATOR", "EXTRA_CHAR"):
-                options = typ_element.get("OPTIONS") or [","]
+                options = typ_element.get("OPTIONS") or typ_element.get("options") or [","]
                 options = sorted(options, key=len, reverse=True)
 
                 cut_idx = -1
@@ -189,6 +281,8 @@ def content_token_sorting(text, typ_elements, n=1):
     tokens = []
 
     curr_text = text
+    if not typ_elements:
+        return tokens
     if n == 1:
         valid_type = validator_selector(text, typ_elements[0])
         tokens.append({
@@ -202,9 +296,13 @@ def content_token_sorting(text, typ_elements, n=1):
             if len(curr_text) < 1:
                 return tokens
             typ = elem.get("type", "").upper()
+            if not typ:
+                typ = (elem.get("TYPE") or "").upper()
             
             if typ == "EXTRA_CHAR":
-                char_idx = find_separator_char(text, elem.get("OPTIONS", [""]))
+                char_idx = find_separator_char(curr_text, elem.get("OPTIONS") or elem.get("options", [""]))
+                if char_idx == -1:
+                    continue
                 curr_text = curr_text[char_idx:]
                 if char_idx + 1 < len(curr_text):
                     curr_text =  curr_text[:char_idx] + curr_text[char_idx+1:]
@@ -213,7 +311,7 @@ def content_token_sorting(text, typ_elements, n=1):
                     curr_text = ""
                     typ_elements.remove(elem)
         if curr_text and curr_text[0] and  len(typ_elements) == 1:
-            tokens += content_token_sorting(text, typ_elements, len(typ_elements))
+            tokens += content_token_sorting(curr_text, typ_elements, len(typ_elements))
         return tokens
 
     return tokens
@@ -221,12 +319,12 @@ def content_token_sorting(text, typ_elements, n=1):
 # primerja vse moznosti v token bank in izbere najboljso
 def stronger_match(token_bank):
 
-    len = -1
+    winner_len = -1
     winner = 0
     for idx,tkns in enumerate(token_bank):
-        if len(tkns) > len:
+        if len(tkns) > winner_len:
             winner = idx
-            len = len(tkns)
+            winner_len = len(tkns)
     return token_bank[winner]
 
 # naredi dict z vsemi info od bib entry
@@ -262,42 +360,54 @@ def create_bib_entry(tokens):
 
 
 def tokenize_author_entry(line_text):
-    bib_structures = config.get("BIB_STRUCTURE", "")
+    valid_structures = normalize_bib_structures(config.get("BIB_STRUCTURE", ""))
+    if not valid_structures:
+        return create_bib_entry([])
+    token_bank = [[] for _ in valid_structures]
+    bib_entry = create_bib_entry([])
 
-    line_text = ""
-    pre_separator_count = 0
-    separator_idx = -1
-    token_bank = [[]]
-    bib_entry = {}
-
-    for struct_idx, struct in enumerate(bib_structures):
+    for struct_idx, struct in enumerate(valid_structures):
+        pre_separator_count = 0
+        separator_idx = -1
         curr_text = line_text
         tokens = token_bank[struct_idx]
 
         for idx,typ_element in enumerate(struct):
-            typ = typ_element.get("type", "").upper()
+            if not isinstance(typ_element, dict):
+                continue
+            typ = (typ_element.get("type") or typ_element.get("TYPE") or "").upper()
             pre_separator_count += 1
             # if typ == "EXTRA_CHAR" and separator_idx > 0:
             #     pre_separator_count -= 1
             if typ == "SEPARATOR":
                 if pre_separator_count > 2:
-                    return # not correct formatting
+                    break # not correct formatting
 
-                options = typ_element.get("OPTIONS") or [","]
+                options = typ_element.get("OPTIONS") or typ_element.get("options") or [","]
                 options = sorted(options, key=len, reverse=True)
 
                 separator_idx = find_separator_char(curr_text, options)
                 if separator_idx == -1:
-                    return ## error not correct formatting
+                    break ## error not correct formatting
                 curr_tokens_text = curr_text[:separator_idx]
-                curr_text = curr_text[idx+1:]
-                curr_types = typ_element[idx - pre_separator_count:idx]
+                used_option = ""
+                for opt in options:
+                    if curr_text.find(opt) == separator_idx:
+                        used_option = opt
+                        break
+                curr_text = curr_text[separator_idx + len(used_option):].strip()
+                curr_types = struct[idx - pre_separator_count:idx]
                 curr_tokens = content_token_sorting(curr_tokens_text, curr_types, pre_separator_count)
                 tokens.extend(curr_tokens)
                 pre_separator_count = 0 #at the end of this block
+        if pre_separator_count > 0 and curr_text:
+            curr_types = struct[len(struct) - pre_separator_count:]
+            curr_tokens = content_token_sorting(curr_text, curr_types, pre_separator_count)
+            tokens.extend(curr_tokens)
 
     tokens = stronger_match(token_bank)
     bib_entry = create_bib_entry(tokens)
+    return bib_entry
 
 
 
@@ -325,23 +435,48 @@ def extract_authors_modular(doc, page_idx, delimiter, ctx=None, article_start_pa
             if "lines" in block:
                 for line in block["lines"]:
                     line_text = " ".join([span["text"] for span in line["spans"]])
-                    if delimiter in line_text or start_bib:
+                    if delimiter in line_text or start_bib: # zacne parsing bibliografije
                         start_bib = True
-                        line_rect = pymupdf.Rect(line["bbox"])
                         if line_has_author(line_text.strip()) and  not is_gathering_lines:
+                            # preveri prvi naslednji zadetek potencialnega vnosa dela/avtorja
                             is_gathering_lines = True
-                            author_entry_lines += line_text.strip()
+                            author_entry_lines = line_text.strip()
+                            line_rect = pymupdf.Rect(line["bbox"])
                         if is_gathering_lines:
                             if not line_has_author(line_text.strip()):
+                                # zbiranje celetno enote dela/avtorja 
                                 author_entry_lines += " " + line_text.strip()
                             else:
-                                tokenize_author_entry(author_entry_lines)
+                                # obdelava in preverjanje zbranega teksta
+                                line_info = tokenize_author_entry(author_entry_lines)
+                                line_info.update({
+                                    "text": author_entry_lines,
+                                    "position": line_rect,
+                                    "page": page_idx,
+                                })
+                                lines_info.append(line_info)
                                 author_entry_lines = ""
                                 is_gathering_lines = False
                 if author_entry_lines and is_gathering_lines:
-                    tokenize_author_entry(author_entry_lines)
+                    line_info = tokenize_author_entry(author_entry_lines)
+                    line_info.update({
+                        "text": author_entry_lines,
+                        "position": line_rect,
+                        "page": page_idx,
+                    })
+                    lines_info.append(line_info)
                     author_entry_lines = ""
-                            
-                            
+        page_idx += 1
+                             
+    if ctx:
+        ctx.page_in_article = None
+        ctx.page_in_doc = article_start_page + 1
+    return lines_info
+
+"""
+mozno da vrstica del footerja/headerja - treba izlociti iz bib entry
+vrstice samo z newline (prazne) se ne zapisejo z pymupdf
+ce so special chars mora vse znotraj njih biti smatrano kot del celote, to se pravi znotraj ne isce separatorjev
 
 
+"""
