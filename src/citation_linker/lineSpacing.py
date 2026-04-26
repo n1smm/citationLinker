@@ -5,8 +5,8 @@ import pymupdf
 """ struct: 
 spacing_check = { "last": 0.0,
                  "current": 0.0,
-                 "tolerance": spacing_tolerance,
-                 "common_line_spacing": common_line_spacing}
+                 "tolerance": spacing_tolerance: float,
+                 "common_line_spacing": common_line_spacing: float}
 """
 def is_empty_line(spacing_check):
     difference = spacing_check["current"] - spacing_check["last"]
@@ -18,7 +18,7 @@ def is_empty_line(spacing_check):
 
 
 
-def _collect_bibliography_line_rects(doc, start_page_idx, delimiter):
+def collect_bibliography_line_rects(doc, start_page_idx, delimiter):
     bibliography_started = False
     line_rects = []
 
@@ -39,7 +39,7 @@ def _collect_bibliography_line_rects(doc, start_page_idx, delimiter):
     return line_rects
 
 
-def _build_spacing_sequence(line_rects, min_spacing, max_spacing):
+def build_spacing_sequence(line_rects, min_spacing, max_spacing):
     spacings = []
     if len(line_rects) < 2:
         return spacings
@@ -75,8 +75,8 @@ def find_common_line_spacing(
     min_spacing=0.0,
     max_spacing=120.0,
 ):
-    line_rects = _collect_bibliography_line_rects(doc, start_page_idx, delimiter)
-    spacing_sequence = _build_spacing_sequence(line_rects, min_spacing, max_spacing)
+    line_rects = collect_bibliography_line_rects(doc, start_page_idx, delimiter)
+    spacing_sequence = build_spacing_sequence(line_rects, min_spacing, max_spacing)
     if not spacing_sequence:
         return None
 

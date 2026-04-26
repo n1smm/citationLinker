@@ -62,7 +62,7 @@ class Bib_types(Enum):
     IGNORE = 6
 
 # globalni regexi
-year_search_pattern = re.compile(r'\d{4}[a-zA-Z]?$')
+year_search_pattern = re.compile(r'\d{4}[a-zA-Z]?')
 year_span_pattern = re.compile(r'\d{4} {0,2}[-–—]{1,2} {0,2}\d{4}')
 
 # validatorji
@@ -352,10 +352,10 @@ def content_token_sorting(text, typ_elements, n=1):
                 typ = (elem.get("TYPE") or "").upper()
             
             if typ == "EXTRA_CHAR":
-                char_idx = find_separator_char(curr_text, elem.get("OPTIONS") or elem.get("options", [""]))
+                char_idx = find_separator_char(curr_text, elem.get("OPTIONS", [""]))
                 if char_idx == -1:
                     continue
-                curr_text = curr_text[char_idx:]
+                # curr_text = curr_text[char_idx:]
                 if char_idx + 1 < len(curr_text):
                     curr_text =  curr_text[:char_idx] + curr_text[char_idx+1:]
                     typ_elements.remove(elem)
