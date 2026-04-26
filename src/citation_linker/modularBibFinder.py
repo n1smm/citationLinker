@@ -5,6 +5,7 @@ from    enum            import Enum
 from    .utils          import years_span_parser, soft_year_expand, alternative_names_concat
 from    .configLoad     import config
 from    .appLogger      import get_logger
+from    .lineSpacing    import find_common_line_spacing, is_empty_line
 
 
 logger = get_logger()
@@ -85,7 +86,6 @@ def is_capitalized(text, all=False):
     return False
 
 # iskanje leta ali razpona npr 1028a ali 1999-2002
-# TODO dodaj moznost prepoznavanja ali gre za span ali year
 def is_year_or_span(text):
     text = text.strip()
     if bool(year_span_pattern.search(text)):
@@ -113,6 +113,58 @@ def find_separator_char(text, char_list=[","]):
             return idx
 
     return idx
+
+
+def find_separator_outside_wrappers(text, separator_options, wrapper_options=None):
+    text = text.strip()
+    if not text:
+        return -1, ""
+
+    separator_options = [opt for opt in (separator_options or []) if isinstance(opt, str) and opt]
+    if not separator_options:
+        return -1, ""
+    separator_options = sorted(separator_options, key=len, reverse=True)
+
+    wrapper_chars = {
+        opt for opt in (wrapper_options or [])
+        if isinstance(opt, str) and len(opt) == 1
+    }
+    paired_wrappers = {"(": ")", "[": "]", "{": "}", "<": ">"}
+    symmetric_wrappers = {char for char in wrapper_chars if paired_wrappers.get(char) == char}
+    for quote_char in ('"', "'"):
+        if quote_char in wrapper_chars:
+            symmetric_wrappers.add(quote_char)
+
+    idx = 0
+    stack = []
+    while idx < len(text):
+        curr_char = text[idx]
+
+        if curr_char in symmetric_wrappers:
+            if stack and stack[-1] == curr_char:
+                stack.pop()
+            else:
+                stack.append(curr_char)
+            idx += 1
+            continue
+
+        if stack and curr_char == stack[-1]:
+            stack.pop()
+            idx += 1
+            continue
+
+        if curr_char in wrapper_chars and curr_char in paired_wrappers:
+            stack.append(paired_wrappers[curr_char])
+            idx += 1
+            continue
+
+        if not stack:
+            for option in separator_options:
+                if text.startswith(option, idx):
+                    return idx, option
+        idx += 1
+
+    return -1, ""
 
         
 def validator_selector(text, typ_element):
@@ -367,42 +419,47 @@ def tokenize_author_entry(line_text):
     bib_entry = create_bib_entry([])
 
     for struct_idx, struct in enumerate(valid_structures):
-        pre_separator_count = 0
-        separator_idx = -1
         curr_text = line_text
         tokens = token_bank[struct_idx]
+        segment_types = []
+        wrapper_options = []
 
-        for idx,typ_element in enumerate(struct):
+        for typ_element in struct:
             if not isinstance(typ_element, dict):
                 continue
             typ = (typ_element.get("type") or typ_element.get("TYPE") or "").upper()
-            pre_separator_count += 1
-            # if typ == "EXTRA_CHAR" and separator_idx > 0:
-            #     pre_separator_count -= 1
+            if typ != "EXTRA_CHAR":
+                continue
+            options = typ_element.get("OPTIONS") or typ_element.get("options") or []
+            if isinstance(options, str):
+                options = [options]
+            wrapper_options.extend([opt for opt in options if isinstance(opt, str) and opt.strip()])
+
+        for typ_element in struct:
+            if not isinstance(typ_element, dict):
+                continue
+            typ = (typ_element.get("type") or typ_element.get("TYPE") or "").upper()
             if typ == "SEPARATOR":
-                if pre_separator_count > 2:
+                if len(segment_types) > 2:
                     break # not correct formatting
 
                 options = typ_element.get("OPTIONS") or typ_element.get("options") or [","]
                 options = sorted(options, key=len, reverse=True)
 
-                separator_idx = find_separator_char(curr_text, options)
+                separator_idx, used_option = find_separator_outside_wrappers(curr_text, options, wrapper_options)
                 if separator_idx == -1:
-                    break ## error not correct formatting
+                    continue
                 curr_tokens_text = curr_text[:separator_idx]
-                used_option = ""
-                for opt in options:
-                    if curr_text.find(opt) == separator_idx:
-                        used_option = opt
-                        break
                 curr_text = curr_text[separator_idx + len(used_option):].strip()
-                curr_types = struct[idx - pre_separator_count:idx]
-                curr_tokens = content_token_sorting(curr_tokens_text, curr_types, pre_separator_count)
+                curr_tokens = content_token_sorting(curr_tokens_text, segment_types[:], len(segment_types))
                 tokens.extend(curr_tokens)
-                pre_separator_count = 0 #at the end of this block
-        if pre_separator_count > 0 and curr_text:
-            curr_types = struct[len(struct) - pre_separator_count:]
-            curr_tokens = content_token_sorting(curr_text, curr_types, pre_separator_count)
+                segment_types = []
+                continue
+
+            segment_types.append(typ_element)
+
+        if segment_types and curr_text:
+            curr_tokens = content_token_sorting(curr_text, segment_types[:], len(segment_types))
             tokens.extend(curr_tokens)
 
     tokens = stronger_match(token_bank)
@@ -418,18 +475,28 @@ def tokenize_author_entry(line_text):
 # poisce in vrne list[dict] z vsemi informacijami glede avtorjev v bibliografiji
 # stil bibliografije lahko doloci uporabnik (za razliko od extract_authors_from_pdf) nekaj v stilu:
 # npr <priimek> <separator:<,>> <ime> <separator:<,>> <extra char:<(,">> <leto> <extra char:<),">>
+# TODO po extrahiranju bib_entry vrni vrstico nazaj (na naslednji mozni bib entry)
 def extract_authors_modular(doc, page_idx, delimiter, ctx=None, article_start_page=0):
     start_bib = False
     is_gathering_lines = False
     lines_info = []
     start_page_idx = page_idx
     author_entry_lines = ""
+    common_line_spacing = find_common_line_spacing(doc, start_page_idx, delimiter)
+    spacing_tolerance = 0.75
+
+    if ctx:
+        ctx.common_line_spacing = common_line_spacing
 
     while page_idx < len(doc):
         if ctx:
             ctx.page_in_article = (page_idx - start_page_idx) + 1
             ctx.page_in_doc = article_start_page + page_idx + 1
 
+        spacing_check = { "last": 0.0,
+                         "current": 0.0,
+                         "tolerance": spacing_tolerance,
+                         "common_line_spacing": common_line_spacing}
         page = doc[page_idx]
         for block in page.get_text("dict")["blocks"]:
             if "lines" in block:
@@ -437,13 +504,16 @@ def extract_authors_modular(doc, page_idx, delimiter, ctx=None, article_start_pa
                     line_text = " ".join([span["text"] for span in line["spans"]])
                     if delimiter in line_text or start_bib: # zacne parsing bibliografije
                         start_bib = True
+                        spacing_check["current"] = float(pymupdf.Rect(line["bbox"]).y0)
+                        if spacing_check["last"] <= spacing_tolerance:
+                            spacing_check["last"] = spacing_check["current"]
                         if line_has_author(line_text.strip()) and  not is_gathering_lines:
                             # preveri prvi naslednji zadetek potencialnega vnosa dela/avtorja
                             is_gathering_lines = True
                             author_entry_lines = line_text.strip()
                             line_rect = pymupdf.Rect(line["bbox"])
-                        if is_gathering_lines:
-                            if not line_has_author(line_text.strip()):
+                        elif is_gathering_lines:
+                            if not line_has_author(line_text.strip()) and not is_empty_line(spacing_check):
                                 # zbiranje celetno enote dela/avtorja 
                                 author_entry_lines += " " + line_text.strip()
                             else:
@@ -457,6 +527,7 @@ def extract_authors_modular(doc, page_idx, delimiter, ctx=None, article_start_pa
                                 lines_info.append(line_info)
                                 author_entry_lines = ""
                                 is_gathering_lines = False
+                    spacing_check["last"] = spacing_check["current"]
                 if author_entry_lines and is_gathering_lines:
                     line_info = tokenize_author_entry(author_entry_lines)
                     line_info.update({
