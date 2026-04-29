@@ -13,6 +13,7 @@ from    pathlib     import  Path
 
 from    citation_linker.textScreener        import  screen_text
 from    citation_linker.bibliographyFinder  import  extract_authors_from_pdf
+from    citation_linker.modularBibFinder    import  extract_authors_modular
 from    citation_linker.configLoad          import  config, config_load
 from    citation_linker.referenceConnector  import  reference_connector
 from    citation_linker.configPaths         import  resolve_config_path, resolve_dir_paths 
@@ -226,7 +227,14 @@ def main(source_file_path=None):
                     continue
 
                 # pass ctx and article_start_page to all helper functions
-                authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter, ctx, article_start_page)
+                use_legacy = config.get("LEGACY", ["True"])[0] == "True"
+                has_bib_structure = bool(config.get("BIB_STRUCTURE"))
+                if not use_legacy and has_bib_structure:
+                    authors_info = extract_authors_modular(doc, authors_page, authors_delimiter, ctx, article_start_page)
+                else:
+                    if not use_legacy and not has_bib_structure:
+                        logger.warning("LEGACY=False but BIB_STRUCTURE is not set — falling back to legacy parser")
+                    authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter, ctx, article_start_page)
                 references_info = screen_text(doc, authors_page, authors_delimiter, ctx, article_start_page)
                 print_bibliography_info(authors_info, ctx, article_start_page)
                 print_references_info(references_info, ctx, article_start_page)

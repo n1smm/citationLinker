@@ -5,6 +5,7 @@ from    collections import  Counter
 
 from    citation_linker                     import  textScreener
 from    citation_linker.bibliographyFinder  import  extract_authors_from_pdf
+from    citation_linker.modularBibFinder    import  extract_authors_modular
 from    citation_linker.configLoad          import  config, config_load
 from    citation_linker.referenceConnector  import  reference_connector
 from    citation_linker.configPaths         import  resolve_config_path, resolve_dir_paths
@@ -54,7 +55,14 @@ def main():
                 doc.close()
                 return 1
 
-            authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
+            use_legacy = config.get("LEGACY", ["True"])[0] == "True"
+            has_bib_structure = bool(config.get("BIB_STRUCTURE"))
+            if not use_legacy and has_bib_structure:
+                authors_info = extract_authors_modular(doc, authors_page, authors_delimiter)
+            else:
+                if not use_legacy and not has_bib_structure:
+                    print("Warning: LEGACY=False but BIB_STRUCTURE is not set — falling back to legacy parser")
+                authors_info = extract_authors_from_pdf(doc, authors_page, authors_delimiter)
             # print_lines_info(authors_info)
             references_info = textScreener.screen_text(doc, authors_page, authors_delimiter)
             reference_connector(authors_info, references_info, doc)

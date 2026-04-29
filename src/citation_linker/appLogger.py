@@ -5,6 +5,8 @@ import  io
 
 
 _log_buffer = None
+_bib_buffer: list = []
+_cit_buffer: list = []
 
 class JsonLineHandler(logging.StreamHandler):
     """Writes one JSON object per log record to stdout.
@@ -143,9 +145,30 @@ def reset_log_buffer():
     """ clear the log buffer for a new run """
     global _log_buffer
     if _log_buffer is not None:
-        # Truncate the buffer instead of closing it
-        # This keeps the same StringIO object that the handler references
         _log_buffer.seek(0)
         _log_buffer.truncate(0)
+
+
+def record_bib_entry(entry: dict) -> None:
+    """Store one bibliography entry dict for later retrieval by the UI."""
+    _bib_buffer.append(entry)
+
+
+def record_cit_entry(entry: dict) -> None:
+    """Store one citation/reference entry dict for later retrieval by the UI."""
+    _cit_buffer.append(entry)
+
+
+def get_bib_entries() -> list:
+    return list(_bib_buffer)
+
+
+def get_cit_entries() -> list:
+    return list(_cit_buffer)
+
+
+def reset_data_buffers() -> None:
+    _bib_buffer.clear()
+    _cit_buffer.clear()
 
 
