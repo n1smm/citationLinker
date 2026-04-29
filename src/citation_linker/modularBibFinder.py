@@ -60,6 +60,7 @@ class Bib_types(Enum):
     SEPARATOR = 4
     EXTRA_CHAR = 5
     IGNORE = 6
+    OTHER_AUTHORS = 7
 
 # globalni regexi
 year_search_pattern = re.compile(r'\d{4}[a-zA-Z]?')
@@ -115,6 +116,28 @@ def find_separator_char(text, char_list=[","]):
     return idx
 
 
+def _is_word_boundary(text, start, end):
+    """True when the match at text[start:end] is surrounded by non-word characters."""
+    before_ok = start == 0 or not (text[start - 1].isalnum() or text[start - 1] == '_')
+    after_ok  = end >= len(text) or not (text[end].isalnum() or text[end] == '_')
+    return before_ok and after_ok
+
+
+def _find_separator_in_text(text, option):
+    """Find first occurrence of option in text, respecting word boundaries for word-like separators."""
+    if not re.search(r'\w', option):
+        return text.find(option)
+    pos = 0
+    while pos < len(text):
+        found = text.find(option, pos)
+        if found == -1:
+            return -1
+        if _is_word_boundary(text, found, found + len(option)):
+            return found
+        pos = found + 1
+    return -1
+
+
 def find_separator_outside_wrappers(text, separator_options, wrapper_options=None):
     text = text.strip()
     if not text:
@@ -161,6 +184,12 @@ def find_separator_outside_wrappers(text, separator_options, wrapper_options=Non
         if not stack:
             for option in separator_options:
                 if text.startswith(option, idx):
+                    if re.search(r'\w', option) and not _is_word_boundary(text, idx, idx + len(option)):
+                        logger.debug(
+                            f"  find_separator: word-sep {repr(option)} at idx={idx} "
+                            f"NOT at word boundary in {repr(text[:60])}, skipping"
+                        )
+                        continue
                     return idx, option
         idx += 1
 
@@ -187,6 +216,9 @@ def validator_selector(text, typ_element):
     elif typ == "SEPARATOR" and is_separator_or_char(text, typ_element.get("OPTIONS") or typ_element.get("options", "")):
         return "SEPARATOR"
 
+    elif typ == "OTHER_AUTHORS" and text.strip():
+        return "OTHER_AUTHORS"
+
     else:
         return "IGNORE"
 
@@ -203,6 +235,8 @@ def _normalize_structure_type(raw_type):
         "SEPARATOR": "SEPARATOR",
         "EXTRA_CHAR": "EXTRA_CHAR",
         "EXTRACHAR": "EXTRA_CHAR",
+        "OTHER_AUTHORS": "OTHER_AUTHORS",
+        "OTHERS": "OTHER_AUTHORS",
         "IGNORE": "IGNORE",
     }
     return aliases.get(normalized, normalized)
@@ -212,11 +246,232 @@ def _normalize_options(raw_options):
     if isinstance(raw_options, list):
         return [opt.strip() for opt in raw_options if isinstance(opt, str) and opt.strip()]
     if isinstance(raw_options, str):
+        if "|" in raw_options:
+            return [opt.strip() for opt in raw_options.split("|") if opt.strip()]
         return [opt.strip() for opt in raw_options.split(",") if opt.strip()]
     return []
 
 
+def _parse_bool(raw_value, default=False):
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, str):
+        value = raw_value.strip().lower()
+        if value in ("true", "1", "yes"):
+            return True
+        if value in ("false", "0", "no"):
+            return False
+    return default
+
+
+def _next_expected_type_looks_valid(text, remaining_struct):
+    probe = text.strip()
+    if not probe:
+        return False
+
+    for elem in remaining_struct:
+        if not isinstance(elem, dict):
+            continue
+        typ = (elem.get("type") or elem.get("TYPE") or "").upper()
+        if not typ:
+            continue
+
+        if typ == "SEPARATOR":
+            options = sorted(elem.get("options") or elem.get("OPTIONS") or [","], key=len, reverse=True)
+            matched = False
+            for opt in options:
+                if probe.startswith(opt):
+                    probe = probe[len(opt):].strip()
+                    matched = True
+                    break
+            if matched:
+                continue
+            continue
+
+        if typ == "EXTRA_CHAR":
+            options = sorted(elem.get("options") or elem.get("OPTIONS") or [], key=len, reverse=True)
+            if not options:
+                continue
+            for opt in options:
+                if probe.startswith(opt):
+                    probe = probe[len(opt):].strip()
+                    break
+            else:
+                return False
+            continue
+
+        if typ == "YEAR":
+            return bool(re.match(r"^\d{4}[a-zA-Z]?\b", probe) or re.match(r"^\d{4}\s{0,2}[-–—]{1,2}\s{0,2}\d{4}", probe))
+
+        if typ in ("SURNAME", "NAME", "TITLE"):
+            return bool(probe and probe[0].isupper())
+
+        if typ == "OTHER_AUTHORS":
+            return bool(probe)
+
+        if typ == "IGNORE":
+            return True
+
+    return bool(probe)
+
+
+def _separator_candidates_outside_wrappers(text, separator_options, wrapper_options=None):
+    text = text.strip()
+    options = [opt for opt in (separator_options or []) if isinstance(opt, str) and opt]
+    if not text or not options:
+        return []
+    options = sorted(options, key=len, reverse=True)
+
+    wrapper_chars = {
+        opt for opt in (wrapper_options or [])
+        if isinstance(opt, str) and len(opt) == 1
+    }
+    paired_wrappers = {"(": ")", "[": "]", "{": "}", "<": ">"}
+    symmetric_wrappers = {char for char in wrapper_chars if paired_wrappers.get(char) == char}
+    for quote_char in ('"', "'"):
+        if quote_char in wrapper_chars:
+            symmetric_wrappers.add(quote_char)
+
+    idx = 0
+    stack = []
+    matches = []
+    while idx < len(text):
+        curr_char = text[idx]
+
+        if curr_char in symmetric_wrappers:
+            if stack and stack[-1] == curr_char:
+                stack.pop()
+            else:
+                stack.append(curr_char)
+            idx += 1
+            continue
+
+        if stack and curr_char == stack[-1]:
+            stack.pop()
+            idx += 1
+            continue
+
+        if curr_char in wrapper_chars and curr_char in paired_wrappers:
+            stack.append(paired_wrappers[curr_char])
+            idx += 1
+            continue
+
+        if not stack:
+            for option in options:
+                if text.startswith(option, idx):
+                    matches.append((idx, option))
+                    break
+        idx += 1
+    return matches
+
+
+def _extract_other_authors_segment(curr_text, other_elem, separator_options, wrapper_options, remaining_struct):
+    text = curr_text.strip()
+    if not text:
+        return "", ""
+
+    candidates = _separator_candidates_outside_wrappers(text, separator_options, wrapper_options)
+    if not candidates:
+        return text, ""
+
+    expected_types_ahead = any(
+        isinstance(elem, dict) and (elem.get("type") or elem.get("TYPE") or "").upper() not in ("SEPARATOR", "IGNORE")
+        for elem in remaining_struct
+    )
+    if not expected_types_ahead:
+        return text, ""
+
+    other_options = _normalize_options(other_elem.get("options") or other_elem.get("OPTIONS") or ["and", "in", ","])
+    other_options_lc = {opt.lower() for opt in other_options}
+    sep_options_lc = {opt.lower() for opt in (separator_options or [])}
+    shared_separator = bool(other_options_lc & sep_options_lc)
+
+    if not shared_separator:
+        split_idx, used_option = candidates[0]
+        return text[:split_idx].strip(), text[split_idx + len(used_option):].strip()
+
+    for split_idx, used_option in candidates:
+        left = text[:split_idx].strip()
+        right = text[split_idx + len(used_option):].strip()
+        if not left or not right:
+            continue
+        if _next_expected_type_looks_valid(right, remaining_struct):
+            return left, right
+
+    for elem in remaining_struct:
+        if not isinstance(elem, dict):
+            continue
+        typ = (elem.get("type") or elem.get("TYPE") or "").upper()
+        if typ == "YEAR":
+            year_match = re.search(r"\d{4}[a-zA-Z]?\b", text)
+            if year_match and year_match.start() > 0:
+                left = text[:year_match.start()].strip(" \t\n\r,;:.")
+                right = text[year_match.start():].strip()
+                if left and right:
+                    return left, right
+            break
+        if typ not in ("SEPARATOR", "EXTRA_CHAR", "IGNORE"):
+            break
+
+    split_idx, used_option = candidates[-1]
+    return text[:split_idx].strip(), text[split_idx + len(used_option):].strip()
+
+
+def _dedupe_keep_order(values):
+    seen = set()
+    out = []
+    for value in values:
+        normalized = value.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        out.append(normalized)
+    return out
+
+
+def _extract_other_author_values(text, options=None):
+    if not text:
+        return []
+    work_text = " ".join(text.split()).strip(" \t\n\r,;:.")
+    if not work_text:
+        return []
+
+    options = _normalize_options(options or ["and", "in", ","])
+    punctuation_separators = [opt for opt in options if re.fullmatch(r"[^\w\s]+", opt or "")]
+    word_separators = [re.escape(opt) for opt in options if opt and re.search(r"\w", opt)]
+
+    split_text = work_text
+    for punct in punctuation_separators:
+        split_text = split_text.replace(punct, ",")
+    if word_separators:
+        split_text = re.sub(rf"\s+(?:{'|'.join(word_separators)})\s+", ",", split_text, flags=re.IGNORECASE)
+
+    chunks = [chunk.strip(" \t\n\r,;:.()[]{}") for chunk in split_text.split(",")]
+    full_names = []
+    for chunk in chunks:
+        if not chunk:
+            continue
+        cleaned = re.sub(r"\(\s*(?:ur\.?|ed\.?|eds\.?|editor(?:s)?|edited by)\s*\)", " ", chunk, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\b(?:ur\.?|ed\.?|eds\.?|editor(?:s)?|edited by)\b\.?", " ", cleaned, flags=re.IGNORECASE)
+        cleaned = " ".join(cleaned.split()).strip(" \t\n\r,;:.()[]{}")
+        if cleaned and any(token and token[0].isupper() for token in cleaned.split()):
+            full_names.append(cleaned)
+
+    values = []
+    values.extend(full_names)
+    for full_name in full_names:
+        values.extend(alternative_names_concat(full_name))
+        for token in full_name.split():
+            token = token.strip(" \t\n\r,;:.()[]{}")
+            if token and token[0].isupper():
+                values.append(token)
+    return _dedupe_keep_order(values)
+
+
 def normalize_bib_structures(raw_bib_structures):
+    # Supports both dict and flat-string elements.
+    # Flat-string example for configurable co-authors:
+    #   OTHER_AUTHORS:required=False:options=,|and|in
     if not isinstance(raw_bib_structures, list) or not raw_bib_structures:
         return []
 
@@ -238,10 +493,14 @@ def normalize_bib_structures(raw_bib_structures):
                 if not typ:
                     continue
                 elem = {"type": typ}
-                if typ in ("SEPARATOR", "EXTRA_CHAR"):
+                if "required" in raw_elem or "REQUIRED" in raw_elem:
+                    elem["required"] = _parse_bool(raw_elem.get("required") if "required" in raw_elem else raw_elem.get("REQUIRED"), True)
+                if typ in ("SEPARATOR", "EXTRA_CHAR", "OTHER_AUTHORS"):
                     options = _normalize_options(raw_elem.get("options") or raw_elem.get("OPTIONS"))
                     if typ == "SEPARATOR" and not options:
                         options = [","]
+                    if typ == "OTHER_AUTHORS" and not options:
+                        options = [",", "and", "in"]
                     elem["options"] = options
                 normalized_struct.append(elem)
                 continue
@@ -259,16 +518,33 @@ def normalize_bib_structures(raw_bib_structures):
                         prev_options.append(token)
                 continue
 
-            raw_type, raw_opts = (token.split(":", 1) + [""])[:2]
+            parts = [part.strip() for part in token.split(":") if part.strip()]
+            raw_type = parts[0] if parts else ""
             typ = _normalize_structure_type(raw_type)
             if not typ:
                 continue
 
             elem = {"type": typ}
-            if typ in ("SEPARATOR", "EXTRA_CHAR"):
-                options = _normalize_options(raw_opts)
+            legacy_options = []
+            for meta in parts[1:]:
+                if "=" not in meta:
+                    legacy_options.append(meta)
+                    continue
+                key, value = [part.strip() for part in meta.split("=", 1)]
+                key_upper = key.upper()
+                if key_upper == "REQUIRED":
+                    elem["required"] = _parse_bool(value, True)
+                elif key_upper == "OPTIONS":
+                    elem["options"] = _normalize_options(value)
+
+            if typ in ("SEPARATOR", "EXTRA_CHAR", "OTHER_AUTHORS"):
+                options = elem.get("options", [])
+                if not options and legacy_options:
+                    options = _normalize_options("|".join(legacy_options))
                 if typ == "SEPARATOR" and not options:
                     options = [","]
+                if typ == "OTHER_AUTHORS" and not options:
+                    options = [",", "and", "in"]
                 elem["options"] = options
             normalized_struct.append(elem)
 
@@ -289,22 +565,28 @@ def normalize_bib_structures(raw_bib_structures):
 def line_has_author(line_text):
     bib_structures = normalize_bib_structures(config.get("BIB_STRUCTURE", ""))
     if not bib_structures:
+        logger.debug(f"line_has_author: no bib_structures configured, returning False")
         return False
     orig_line_text = line_text.strip()
 
-    for struct in bib_structures:
+    for struct_idx, struct in enumerate(bib_structures):
         if not isinstance(struct, list):
             continue
         hits = 0
+        separators_found = 0
         line_text = orig_line_text
         for typ_element in struct:
             if not isinstance(typ_element, dict):
                 continue
             typ = (typ_element.get("type") or typ_element.get("TYPE") or "").upper()
+            # Only count a SURNAME/NAME/TITLE hit when the text has actually been
+            # advanced past at least one separator (prevents false positives on plain
+            # capitalized words like "Literatura" that have no commas/colons).
             if (typ in ("SURNAME", "NAME", "TITLE")
                 and line_text and line_text[0].isupper()):
-                hits += 1
-                
+                if typ == "SURNAME" or separators_found > 0:
+                    hits += 1
+
             elif typ in ("SEPARATOR", "EXTRA_CHAR"):
                 options = typ_element.get("OPTIONS") or typ_element.get("options") or [","]
                 options = sorted(options, key=len, reverse=True)
@@ -312,20 +594,24 @@ def line_has_author(line_text):
                 cut_idx = -1
                 used_option = None
                 for opt in options:
-                    pos = line_text.find(opt)
+                    pos = _find_separator_in_text(line_text, opt)
                     if pos != -1:
                         cut_idx = pos
                         used_option = opt
                         break
                 if cut_idx == -1:
                     continue
+                separators_found += 1
                 line_text = line_text[cut_idx + len(used_option):].strip()
 
             elif typ == "YEAR":
                 if year_search_pattern.search(line_text):
                     hits += 1
-            if hits > 2:
+            if hits >= 2:
+                logger.debug(f"line_has_author [struct {struct_idx}]: TRUE for: {repr(orig_line_text[:60])}")
                 return True
+        logger.debug(f"line_has_author [struct {struct_idx}]: hits={hits}, separators_found={separators_found}, remaining_text={repr(line_text[:40])}")
+    logger.debug(f"line_has_author: FALSE for: {repr(orig_line_text[:60])}")
     return False
 
 
@@ -341,16 +627,18 @@ def content_token_sorting(text, typ_elements, n=1):
             "text": text.strip(),
             "type": valid_type
             })
+        logger.debug(f"  content_token_sorting n=1: text={repr(text[:40])} → type={valid_type}")
         return tokens
 
-    elif n > 1 and n < 3:
+    elif n > 1:
+        logger.debug(f"  content_token_sorting n={n}: text={repr(curr_text[:40])}, types={[e.get('type') for e in typ_elements]}")
         for elem in typ_elements[:]:
             if len(curr_text) < 1:
                 return tokens
             typ = elem.get("type", "").upper()
             if not typ:
                 typ = (elem.get("TYPE") or "").upper()
-            
+
             if typ == "EXTRA_CHAR":
                 char_idx = find_separator_char(curr_text, elem.get("OPTIONS", [""]))
                 if char_idx == -1:
@@ -362,8 +650,29 @@ def content_token_sorting(text, typ_elements, n=1):
                 else:
                     curr_text = ""
                     typ_elements.remove(elem)
-        if curr_text and curr_text[0] and  len(typ_elements) == 1:
+        if curr_text and curr_text[0] and len(typ_elements) == 1:
             tokens += content_token_sorting(curr_text, typ_elements, len(typ_elements))
+        elif curr_text and len(typ_elements) == 2:
+            # NAME/SURNAME/TITLE/OTHER_AUTHORS + YEAR pair left after stripping EXTRA_CHARs:
+            # find the year in the remaining text and split around it
+            type_pairs = [(e, (e.get("type") or e.get("TYPE") or "").upper()) for e in typ_elements]
+            year_elem = next((e for e, t in type_pairs if t == "YEAR"), None)
+            name_elem = next((e for e, t in type_pairs if t in ("NAME", "SURNAME", "TITLE", "OTHER_AUTHORS")), None)
+            logger.debug(f"  content_token_sorting n=2 pair: year_elem={year_elem is not None}, name_elem={name_elem is not None}, types={[t for _,t in type_pairs]}")
+            if year_elem and name_elem:
+                year_match = year_search_pattern.search(curr_text)
+                if year_match:
+                    name_text = curr_text[:year_match.start()].strip(" \t\n\r,;:.()")
+                    year_text = year_match.group()
+                    if name_text:
+                        tokens.append({"text": name_text, "type": validator_selector(name_text, name_elem)})
+                    tokens.append({"text": year_text, "type": "YEAR"})
+            elif name_elem and not year_elem:
+                name_text = curr_text.strip(" \t\n\r,;:.()")
+                if name_text:
+                    tokens.append({"text": name_text, "type": validator_selector(name_text, name_elem)})
+            else:
+                logger.debug(f"  content_token_sorting n=2: UNHANDLED pair {[t for _,t in type_pairs]} — no tokens produced for text={repr(curr_text[:40])}")
         return tokens
 
     return tokens
@@ -398,25 +707,63 @@ def create_bib_entry(tokens):
             bib_entry["name"] = text or "yyy"
         # TODO check ce je yearspan ali mora potem tudi prva letnica iz span biti v year
         elif typ == "YEAR":
-            bib_entry["year"] = text or "yyy"
-            bib_entry["years"].append(text)
+            year_match = year_search_pattern.search(text or "")
+            year_token = year_match.group() if year_match else (text or "yyy")
+            bib_entry["year"] = year_token
+            bib_entry["years"].append(year_token)
         # TODO dodaj se year span v years
         elif typ == "YEAR_SPAN":
-            bib_entry["year_span"] = text
-        elif typ == "OTHERS":
-            bib_entry["others"].append(text)
+            span_match = year_span_pattern.search(text or "")
+            bib_entry["year_span"] = span_match.group() if span_match else (text or "yyy")
+        elif typ in ("OTHERS", "OTHER_AUTHORS"):
+            other_options = tkn.get("options") or []
+            if typ == "OTHER_AUTHORS":
+                bib_entry["others"].extend(_extract_other_author_values(text, other_options))
+            elif text:
+                bib_entry["others"].append(text)
         # Add more types as needed
+    bib_entry["others"] = _dedupe_keep_order(bib_entry["others"])
+    if not bib_entry["others"]:
+        bib_entry["others"] = ["yyy"]
     return bib_entry
 
-    
 
+#Preveri, ali je razčlenjen bibliografski zapis veljaven.
+#Kriteriji za veljaven zapis:
+#- Mora imeti priimek (ne sme biti nadomestni znak "yyy")
+#- Mora imeti leto ali obdobje let (ne sme biti nadomestni znak "yyy")
+#Vrne True, če zapis prestane validacijo, sicer False (kar naj sproži ponovni poskus).
+def _is_entry_valid(entry_result):
+    if not isinstance(entry_result, dict):
+        logger.debug(f"  _is_entry_valid: not a dict → False")
+        return False
 
+    surname = entry_result.get("surname", "yyy")
+    year = entry_result.get("year", "yyy")
+    year_span = entry_result.get("year_span", "yyy")
+
+    has_valid_surname = surname and surname != "yyy"
+    has_valid_year = (year and year != "yyy") or (year_span and year_span != "yyy")
+
+    if not has_valid_surname:
+        logger.debug(f"  _is_entry_valid: INVALID — surname missing/placeholder (surname={repr(surname)})")
+    if not has_valid_year:
+        logger.debug(f"  _is_entry_valid: INVALID — year missing/placeholder (year={repr(year)}, year_span={repr(year_span)})")
+    if has_valid_surname and has_valid_year:
+        logger.debug(f"  _is_entry_valid: VALID — surname={repr(surname)}, year={repr(year)}")
+
+    return has_valid_surname and has_valid_year
+
+# preverjanje in tokeniziranje raw text za mozen bib entry
 def tokenize_author_entry(line_text):
     valid_structures = normalize_bib_structures(config.get("BIB_STRUCTURE", ""))
     if not valid_structures:
+        logger.debug(f"tokenize_author_entry: no valid structures configured")
         return create_bib_entry([])
     token_bank = [[] for _ in valid_structures]
     bib_entry = create_bib_entry([])
+
+    logger.debug(f"tokenize_author_entry: input={repr(line_text[:80])}")
 
     for struct_idx, struct in enumerate(valid_structures):
         curr_text = line_text
@@ -435,22 +782,45 @@ def tokenize_author_entry(line_text):
                 options = [options]
             wrapper_options.extend([opt for opt in options if isinstance(opt, str) and opt.strip()])
 
-        for typ_element in struct:
+        logger.debug(f"  struct {struct_idx}: types={[e.get('type') for e in struct if isinstance(e, dict)]}")
+
+        for elem_idx, typ_element in enumerate(struct):
             if not isinstance(typ_element, dict):
                 continue
             typ = (typ_element.get("type") or typ_element.get("TYPE") or "").upper()
             if typ == "SEPARATOR":
-                if len(segment_types) > 2:
-                    break # not correct formatting
-
                 options = typ_element.get("OPTIONS") or typ_element.get("options") or [","]
                 options = sorted(options, key=len, reverse=True)
 
+                remaining_struct = struct[elem_idx + 1:]
+                if (len(segment_types) == 1
+                    and (segment_types[0].get("type") or segment_types[0].get("TYPE") or "").upper() == "OTHER_AUTHORS"):
+                    other_segment = segment_types[0]
+                    other_text, remaining_text = _extract_other_authors_segment(
+                        curr_text,
+                        other_segment,
+                        options,
+                        wrapper_options,
+                        remaining_struct,
+                    )
+                    logger.debug(f"    SEP{options} [OTHER_AUTHORS path]: other_text={repr(other_text[:40])}, remaining={repr(remaining_text[:40])}")
+                    if other_text:
+                        tokens.append({
+                            "text": other_text.strip(),
+                            "type": "OTHER_AUTHORS",
+                            "options": other_segment.get("options") or other_segment.get("OPTIONS") or [],
+                        })
+                    curr_text = remaining_text
+                    segment_types = []
+                    continue
+
                 separator_idx, used_option = find_separator_outside_wrappers(curr_text, options, wrapper_options)
                 if separator_idx == -1:
+                    logger.debug(f"    SEP{options}: NOT FOUND in curr_text={repr(curr_text[:50])}, accumulated_segs={[e.get('type') for e in segment_types]}")
                     continue
                 curr_tokens_text = curr_text[:separator_idx]
                 curr_text = curr_text[separator_idx + len(used_option):].strip()
+                logger.debug(f"    SEP{options} at {separator_idx}: extracted={repr(curr_tokens_text[:40])}, remaining={repr(curr_text[:40])}, segs={[e.get('type') for e in segment_types]}")
                 curr_tokens = content_token_sorting(curr_tokens_text, segment_types[:], len(segment_types))
                 tokens.extend(curr_tokens)
                 segment_types = []
@@ -459,95 +829,160 @@ def tokenize_author_entry(line_text):
             segment_types.append(typ_element)
 
         if segment_types and curr_text:
-            curr_tokens = content_token_sorting(curr_text, segment_types[:], len(segment_types))
-            tokens.extend(curr_tokens)
+            logger.debug(f"  struct {struct_idx} tail: remaining_text={repr(curr_text[:50])}, segs={[e.get('type') for e in segment_types]}")
+            if (len(segment_types) == 1
+                and (segment_types[0].get("type") or segment_types[0].get("TYPE") or "").upper() == "OTHER_AUTHORS"):
+                tokens.append({
+                    "text": curr_text.strip(),
+                    "type": "OTHER_AUTHORS",
+                    "options": segment_types[0].get("options") or segment_types[0].get("OPTIONS") or [],
+                })
+            else:
+                curr_tokens = content_token_sorting(curr_text, segment_types[:], len(segment_types))
+                tokens.extend(curr_tokens)
+
+        logger.debug(f"  struct {struct_idx} tokens: {[(t.get('type'), repr(t.get('text','')[:20])) for t in tokens]}")
 
     tokens = stronger_match(token_bank)
     bib_entry = create_bib_entry(tokens)
+    logger.debug(f"tokenize_author_entry: result surname={repr(bib_entry.get('surname'))}, name={repr(bib_entry.get('name'))}, year={repr(bib_entry.get('year'))}")
     return bib_entry
-
-
-
-
-
 
 
 # poisce in vrne list[dict] z vsemi informacijami glede avtorjev v bibliografiji
 # stil bibliografije lahko doloci uporabnik (za razliko od extract_authors_from_pdf) nekaj v stilu:
 # npr <priimek> <separator:<,>> <ime> <separator:<,>> <extra char:<(,">> <leto> <extra char:<),">>
-# TODO po extrahiranju bib_entry vrni vrstico nazaj (na naslednji mozni bib entry)
 def extract_authors_modular(doc, page_idx, delimiter, ctx=None, article_start_page=0):
     start_bib = False
-    is_gathering_lines = False
     lines_info = []
     start_page_idx = page_idx
-    author_entry_lines = ""
     common_line_spacing = find_common_line_spacing(doc, start_page_idx, delimiter)
     spacing_tolerance = 0.75
+
+    logger.debug(f"extract_authors_modular: starting at page_idx={page_idx}, delimiter={repr(delimiter)}, common_line_spacing={common_line_spacing}")
+
+    bib_structures = normalize_bib_structures(config.get("BIB_STRUCTURE", ""))
+    logger.debug(f"extract_authors_modular: {len(bib_structures)} structure(s) loaded")
+    for i, s in enumerate(bib_structures):
+        logger.debug(f"  structure {i}: {[e.get('type') for e in s if isinstance(e, dict)]}")
 
     if ctx:
         ctx.common_line_spacing = common_line_spacing
 
-    while page_idx < len(doc):
-        if ctx:
-            ctx.page_in_article = (page_idx - start_page_idx) + 1
-            ctx.page_in_doc = article_start_page + page_idx + 1
+    # Global line buffer: accumulate all lines from all pages for index-based processing
+    all_lines_buffer = []
 
-        spacing_check = { "last": 0.0,
-                         "current": 0.0,
-                         "tolerance": spacing_tolerance,
-                         "common_line_spacing": common_line_spacing}
-        page = doc[page_idx]
+    # zbere vse strani
+    #TODO odstrani header/footer
+    temp_page_idx = page_idx
+    while temp_page_idx < len(doc):
+        page = doc[temp_page_idx]
         for block in page.get_text("dict")["blocks"]:
             if "lines" in block:
                 for line in block["lines"]:
                     line_text = " ".join([span["text"] for span in line["spans"]])
-                    if delimiter in line_text or start_bib: # zacne parsing bibliografije
-                        start_bib = True
-                        spacing_check["current"] = float(pymupdf.Rect(line["bbox"]).y0)
-                        if spacing_check["last"] <= spacing_tolerance:
-                            spacing_check["last"] = spacing_check["current"]
-                        if line_has_author(line_text.strip()) and  not is_gathering_lines:
-                            # preveri prvi naslednji zadetek potencialnega vnosa dela/avtorja
-                            is_gathering_lines = True
-                            author_entry_lines = line_text.strip()
-                            line_rect = pymupdf.Rect(line["bbox"])
-                        elif is_gathering_lines:
-                            if not line_has_author(line_text.strip()) and not is_empty_line(spacing_check):
-                                # zbiranje celetno enote dela/avtorja 
-                                author_entry_lines += " " + line_text.strip()
-                            else:
-                                # obdelava in preverjanje zbranega teksta
-                                line_info = tokenize_author_entry(author_entry_lines)
-                                line_info.update({
-                                    "text": author_entry_lines,
-                                    "position": line_rect,
-                                    "page": page_idx,
-                                })
-                                lines_info.append(line_info)
-                                author_entry_lines = ""
-                                is_gathering_lines = False
-                    spacing_check["last"] = spacing_check["current"]
-                if author_entry_lines and is_gathering_lines:
-                    line_info = tokenize_author_entry(author_entry_lines)
-                    line_info.update({
-                        "text": author_entry_lines,
-                        "position": line_rect,
-                        "page": page_idx,
+                    line_rect = pymupdf.Rect(line["bbox"])
+                    all_lines_buffer.append({
+                        "text": line_text,
+                        "rect": line_rect,
+                        "page": temp_page_idx,
+                        "y0": float(line_rect.y0),
                     })
-                    lines_info.append(line_info)
-                    author_entry_lines = ""
-        page_idx += 1
-                             
+        temp_page_idx += 1
+
+    logger.debug(f"extract_authors_modular: {len(all_lines_buffer)} total lines buffered from page {page_idx} to {temp_page_idx-1}")
+
+    # Second pass: parse entries with retry logic from collected lines
+    bib_section_started = False
+    current_line_idx = 0
+    lines_checked_as_author = 0
+    lines_failed_as_author = 0
+
+    while current_line_idx < len(all_lines_buffer):
+        line_data = all_lines_buffer[current_line_idx]
+        line_text = line_data["text"]
+
+        if ctx:
+            ctx.page_in_article = (line_data["page"] - start_page_idx) + 1
+            ctx.page_in_doc = article_start_page + line_data["page"] + 1
+
+        if delimiter in line_text or bib_section_started:
+            if not bib_section_started:
+                logger.debug(f"extract_authors_modular: BIB DELIMITER found at line {current_line_idx}, page {line_data['page']}: {repr(line_text[:60])}")
+            bib_section_started = True
+
+            if line_has_author(line_text.strip()):
+                lines_checked_as_author += 1
+                entry_start_idx = current_line_idx
+                entry_lines_indices = [entry_start_idx]
+                author_entry_lines = line_text.strip()
+                last_gathered_idx = entry_start_idx
+
+                # zberi strani za ta vnos avtoja/dela
+                next_idx = current_line_idx + 1
+                while next_idx < len(all_lines_buffer):
+                    next_line = all_lines_buffer[next_idx]
+                    next_line_text = next_line["text"].strip()
+
+                    # pregled ce je prazna vrstica (za prekinitev/zaljucek vnosa)
+                    spacing_check = {
+                        "last": all_lines_buffer[last_gathered_idx]["y0"],
+                        "current": next_line["y0"],
+                        "tolerance": spacing_tolerance,
+                        "common_line_spacing": common_line_spacing,
+                    }
+
+                    # preverjanje ali se nadaljuje zbiranje vrstic ali ne
+                    if line_has_author(next_line_text):
+                        break
+                    elif is_empty_line(spacing_check):
+                        logger.debug(f"    entry accumulation stopped by empty-line spacing at line {next_idx}")
+                        break
+                    else:
+                        # ce ni konec dodaj strani v zbirnik
+                        author_entry_lines += " " + next_line_text
+                        entry_lines_indices.append(next_idx)
+                        last_gathered_idx = next_idx
+                        next_idx += 1
+
+                logger.debug(f"  ENTRY accumulated ({len(entry_lines_indices)} lines): {repr(author_entry_lines[:100])}")
+
+                # parsing zbranih strani
+                try:
+                    entry_result = tokenize_author_entry(author_entry_lines)
+                    entry_parsed_ok = _is_entry_valid(entry_result)
+                except Exception as e:
+                    logger.debug(f"Entry parsing exception at line {entry_start_idx}: {e}")
+                    entry_parsed_ok = False
+
+                if entry_parsed_ok:
+                    entry_result.update({
+                        "text": author_entry_lines,
+                        "position": line_data["rect"],
+                        "page": line_data["page"],
+                    })
+                    lines_info.append(entry_result)
+                    logger.debug(f"  ENTRY ACCEPTED: surname={repr(entry_result.get('surname'))}, year={repr(entry_result.get('year'))}")
+                    current_line_idx = entry_lines_indices[-1] + 1
+                else:
+                    lines_failed_as_author += 1
+                    logger.debug(f"  ENTRY REJECTED: surname={repr(entry_result.get('surname'))}, year={repr(entry_result.get('year'))}")
+                    # ce parsing ne uspe zacni ponovno zbiranje od naslednje vrstice po prvem
+                    # line_has_author check
+                    current_line_idx = entry_start_idx + 1
+
+            else:
+                # preverjanje line_has_author == false, premakni idx na naslednjo vrstico
+                current_line_idx += 1
+
+        else:
+            # premakni na naslednjo stran dokler ne najde bib delimiter
+            current_line_idx += 1
+
+    logger.debug(f"extract_authors_modular: done. {len(lines_info)} entries accepted, {lines_failed_as_author} failed validation out of {lines_checked_as_author} line_has_author=True lines")
+
     if ctx:
+        #debugger info
         ctx.page_in_article = None
         ctx.page_in_doc = article_start_page + 1
     return lines_info
-
-"""
-mozno da vrstica del footerja/headerja - treba izlociti iz bib entry
-vrstice samo z newline (prazne) se ne zapisejo z pymupdf
-ce so special chars mora vse znotraj njih biti smatrano kot del celote, to se pravi znotraj ne isce separatorjev
-
-
-"""

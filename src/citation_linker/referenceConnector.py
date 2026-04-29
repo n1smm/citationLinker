@@ -14,14 +14,14 @@ def close_match(ref, author):
     else:
         return False
 
-def close_match_array(ref,array):
+def close_match_array(ref, array):
     for author in array:
         if author and len(ref) > 2 and len(author) > 2:
             if author != "yyy" and ref != "xxx":
                 logger.debug(f"Checking close match: ref={ref} vs author={author}")
-            return ref.lower()[:-2] in author.lower()
-        else:
-            return False
+            if ref.lower()[:-2] in author.lower():
+                return True
+    return False
 
 # poglej ce se ujema del enega lista z drugim
 def match_array_array(array1, array2):
