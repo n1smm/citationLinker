@@ -1,4 +1,7 @@
+import  json
 from    pathlib import Path
+
+
 #shranjene moznosti iz .config file-a
 config = {}
 
@@ -42,6 +45,12 @@ def config_load(config_path):
                         numbers = tuple(map(lambda x: int(x) -1 + offset, item.split(':')))
                         tuples.append(numbers)
                     config[key] = {i: t for i, t in enumerate(tuples)}
+                elif "BIB_STRUCTURE" in line:
+                    key, value = line.strip().split('=', 1)
+                    try:
+                        config[key] = json.loads(value.strip())
+                    except json.JSONDecodeError:
+                        config[key] = []
                 else:
                     key, value = line.strip().split('=', 1)
                     config[key] = [item.strip().strip('"') for item in value.split(',') if item.strip().strip('"')]
@@ -62,5 +71,9 @@ def config_load(config_path):
         config['DEBUG'] = ['False']
     if  'ALTERNATIVE_BIB' not in config or not config['ALTERNATIVE_BIB']:
         config['ALTERNATIVE_BIB'] = ['False']
-    print("config: ")
-    print(config)
+    if 'LEGACY' not in config or not config['LEGACY']:
+        config['LEGACY'] = ['True']
+    if config.get("UI", ["False"])[0] == "True":
+        from    citation_linker.appLogger import get_logger
+        logger = get_logger()
+        logger.debug(f"Configuration loaded: {config}")

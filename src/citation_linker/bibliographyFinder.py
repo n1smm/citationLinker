@@ -1,9 +1,11 @@
 import  pymupdf
 import  re
 
-import  pdb
 from    .utils       import years_span_parser, soft_year_expand, alternative_names_concat
 from    .configLoad  import config
+from    .appLogger   import get_logger
+
+logger = get_logger()
 
 
 # viri ki imajo strukturo tako: leto. naslov npr:(1964. Slovenska matica)
@@ -25,7 +27,7 @@ def find_sources_year_dot_work(line_info):
         if years_span_pattern.search(token.strip()):
             years = years_span_parser(token.strip(), years)
             year_span = f"{years[0]}-{years[-1]}" if len(years) > 1 else "yyy"
-            # print(f"year_span is :{year_span}")
+            logger.debug(f"Year span found: {year_span}")
         others.append(token.strip())
 
     if year == "yyy" and not years:
@@ -107,14 +109,9 @@ def find_starting_lines_authors(line_info):
             year_span = f"{years[0]}-{years[-1]}" if len(years) > 1 else "yyy"
         else:
             return False
-    # if token_count < len(tokens) and not ":" in text:
-    #     print(tokens[token_count])
-    #     year = tokens[token_count].split()[0]
-    # elif token_count < len(tokens) and ":" in text:
-    #     print(tokens[token_count])
-    #     year = tokens[len(tokens) - 1].split()[0]
-    # else:
-    #     return False
+    
+    # commented out debugging code - not needed
+    # logger.debug(f"Processing bibliography year parsing: year_span={year_span}")
 
     if not others:
         others = ["yyy"]
@@ -136,11 +133,17 @@ def find_starting_lines_authors(line_info):
 # zacne shranjevati sele od kljucne besede, ki zaznamuje zacetek literature
 #   zbere: celotne vrstice, pozicijo vrstice, stran, in ce je vrstica z avtorjem tudi
 #   ime, priimek in leto
-def extract_authors_from_pdf(doc, page_idx, search_text):
+def extract_authors_from_pdf(doc, page_idx, search_text, ctx=None, article_start_page=0):
 
     start = False
     lines_info = []
+    start_page_idx = page_idx  # zapomni zacetno stran za page_in_article izracun
     while page_idx < len(doc):
+        # posodobi kontekst za trenutno stran
+        if ctx:
+            ctx.page_in_article = (page_idx - start_page_idx) + 1
+            ctx.page_in_doc = article_start_page + page_idx + 1
+        
         page = doc[page_idx]
         for block in page.get_text("dict")["blocks"]:
             if "lines" in block:
@@ -166,4 +169,10 @@ def extract_authors_from_pdf(doc, page_idx, search_text):
                                 ):
                             find_sources_year_dot_work(lines_info[-1])
         page_idx += 1
+    
+    # resetiraj kontekst na stanje na nivoju clanka preden vrnes rezultat
+    if ctx:
+        ctx.page_in_article = None
+        ctx.page_in_doc = article_start_page + 1
+    
     return lines_info
