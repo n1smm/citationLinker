@@ -679,14 +679,30 @@ def content_token_sorting(text, typ_elements, n=1):
 
 # primerja vse moznosti v token bank in izbere najboljso
 def stronger_match(token_bank):
+    # Prefer structurally valid bibliography parses (surname + year/year-span)
+    # over noisy token-rich parses that miss core fields.
+    winner_tokens = token_bank[0] if token_bank else []
+    winner_score = (-1, -1, -1, -1, -1)
 
-    winner_len = -1
-    winner = 0
-    for idx,tkns in enumerate(token_bank):
-        if len(tkns) > winner_len:
-            winner = idx
-            winner_len = len(tkns)
-    return token_bank[winner]
+    for tkns in token_bank:
+        token_types = {(tkn.get("type") or "").upper() for tkn in tkns if isinstance(tkn, dict)}
+        has_surname = "SURNAME" in token_types
+        has_year = "YEAR" in token_types or "YEAR_SPAN" in token_types
+        has_name = "NAME" in token_types
+        has_other_authors = "OTHER_AUTHORS" in token_types or "OTHERS" in token_types
+
+        score = (
+            1 if (has_surname and has_year) else 0,
+            1 if has_surname else 0,
+            1 if has_year else 0,
+            1 if has_name else 0,
+            len(tkns) + (1 if has_other_authors else 0),
+        )
+        if score > winner_score:
+            winner_score = score
+            winner_tokens = tkns
+
+    return winner_tokens
 
 # naredi dict z vsemi info od bib entry
 def create_bib_entry(tokens):
