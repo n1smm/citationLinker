@@ -58,10 +58,12 @@ def print_bibliography_info(lines_info, ctx=None, article_start_page=0):
         logger.debug(f"Bibliography entry - Text: {entry['text']}, Rect: {entry['position']}, Page: {entry['page']}")
         if "surname" in entry and (entry['surname'] != "yyy" and entry['name'] != "yyy"):
             logger.debug(f"  Surname: {entry['surname']}, Name: {entry['name']}, Year: {entry['year']}")
-        if not "yyy" in entry["others"][0] and not ("yyy" in entry['surname'] and "yyy" in entry['name']):
-            for idx, other in enumerate(entry["others"]):
+        others_list = entry.get("others") or ["yyy"]
+        years_list = entry.get("years") or ["yyy"]
+        if "yyy" not in others_list[0] and not ("yyy" in entry['surname'] and "yyy" in entry['name']):
+            for idx, other in enumerate(others_list):
                 logger.debug(f"  Other {idx}: {other}")
-        if not "yyy" in entry["years"][0] and not ("yyy" in entry['surname'] and "yyy" in entry['name']):
+        if "yyy" not in years_list[0] and not ("yyy" in entry['surname'] and "yyy" in entry['name']):
             logger.debug(f"  year_span: {entry['year_span']}")
 
         record_bib_entry({

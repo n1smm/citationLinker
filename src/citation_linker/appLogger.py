@@ -26,9 +26,12 @@ class JsonLineHandler(logging.StreamHandler):
     """
 
     def emit(self, record: logging.LogRecord) -> None:
+        message = record.getMessage()
+        if record.exc_info:
+            message = f"{message}\n{logging.Formatter().formatException(record.exc_info)}"
         d = {
             "level":           record.levelname,
-            "message":         record.getMessage(),
+            "message":         message,
             "article_num":     getattr(record, "article_num",     None),
             "page_in_article": getattr(record, "page_in_article", None),
             "page_in_doc":     getattr(record, "page_in_doc",     None),
@@ -45,9 +48,12 @@ class StringIoHandler(logging.StreamHandler):
         super().__init__(stream)
 
     def emit(self, record):
+        message = record.getMessage()
+        if record.exc_info:
+            message = f"{message}\n{logging.Formatter().formatException(record.exc_info)}"
         data = {
                 "level": record.levelname,
-                "message": record.getMessage(),
+                "message": message,
                 "article_num": getattr(record, "article_num", None),
                 "page_in_article": getattr(record, "page_in_article", None),
                 "page_in_doc": getattr(record, "page_in_doc", None)

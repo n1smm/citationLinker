@@ -640,7 +640,13 @@ def content_token_sorting(text, typ_elements, n=1):
                 typ = (elem.get("TYPE") or "").upper()
 
             if typ == "EXTRA_CHAR":
-                char_idx = find_separator_char(curr_text, elem.get("OPTIONS", [""]))
+                # normalize_bib_structures stores "options" in lowercase; uppercase
+                # OPTIONS was a typo that always fell back to [""], causing find("")
+                # to return 0 and silently strip the first char of curr_text.
+                extra_options = elem.get("options") or elem.get("OPTIONS") or []
+                if not extra_options:
+                    continue
+                char_idx = find_separator_char(curr_text, extra_options)
                 if char_idx == -1:
                     continue
                 # curr_text = curr_text[char_idx:]
@@ -727,10 +733,13 @@ def create_bib_entry(tokens):
             year_token = year_match.group() if year_match else (text or "yyy")
             bib_entry["year"] = year_token
             bib_entry["years"].append(year_token)
-        # TODO dodaj se year span v years
         elif typ == "YEAR_SPAN":
             span_match = year_span_pattern.search(text or "")
-            bib_entry["year_span"] = span_match.group() if span_match else (text or "yyy")
+            span_token = span_match.group() if span_match else (text or "yyy")
+            bib_entry["year_span"] = span_token
+            # razsiri leta iz razpona (mora biti zmeraj zapolnjen years da debugUtils ne crasha)
+            if span_token and span_token != "yyy":
+                bib_entry["years"] = years_span_parser(span_token, bib_entry["years"])
         elif typ in ("OTHERS", "OTHER_AUTHORS"):
             other_options = tkn.get("options") or []
             if typ == "OTHER_AUTHORS":
@@ -741,6 +750,9 @@ def create_bib_entry(tokens):
     bib_entry["others"] = _dedupe_keep_order(bib_entry["others"])
     if not bib_entry["others"]:
         bib_entry["others"] = ["yyy"]
+    # zagotovi da years nikoli ni prazen (debugUtils dostopa years[0] brez guarda)
+    if not bib_entry["years"]:
+        bib_entry["years"] = ["yyy"]
     return bib_entry
 
 
