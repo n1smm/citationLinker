@@ -178,6 +178,33 @@ def main(source_file_path=None):
         os.makedirs(out_dir, exist_ok=True)
         os.makedirs(tmp_output_dir, exist_ok=True)
         doc = pymupdf.open(src_file_name)
+        page_count = doc.page_count
+        logger.info(f"Document has {page_count} pages (1-based)")
+
+        # Validate article breaks are within document bounds
+        article_breaks = config.get('ARTICLE_BREAKS', {})
+        if article_breaks:
+            for idx, (start, end) in enumerate(article_breaks.values()):
+                # config stores 0-based pages; convert to 1-based for user-facing messages
+                start_1b = start + 1
+                end_1b = end + 1
+                if start < 0 or start >= page_count or end < 0 or end >= page_count:
+                    logger.error(
+                        f"Article break '{start_1b}:{end_1b}' is out of bounds. "
+                        f"Document has {page_count} pages (1–{page_count}). "
+                        f"Stopping process."
+                    )
+                    doc.close()
+                    return 1
+                if start > end:
+                    logger.error(
+                        f"Article break '{start_1b}:{end_1b}' is invalid: "
+                        f"start page ({start_1b}) is greater than end page ({end_1b}). "
+                        f"Stopping process."
+                    )
+                    doc.close()
+                    return 1
+
         parts = split_into_parts(doc, config['ARTICLE_BREAKS'], tmp_dir, src_file_name)
         doc.close()
         linked_parts = []
@@ -219,10 +246,17 @@ def main(source_file_path=None):
                 file_name = part["path"]
                 logger.info(f"Processing article file: {file_name}")
                 doc = pymupdf.open(file_name)
+                saved = False
                 # pass article_start_page to find_delimiting_page for correct page tracking
                 authors_page, authors_delimiter = find_delimiting_page(authors_delimiters, doc, ctx, article_start_page)
                 if authors_page == -1 or authors_delimiter == -1:
-                    logger.warning(f"Bibliography delimiter not found in document: {file_name} - skipping article")
+                    logger.warning(f"Bibliography delimiter not found in document: {file_name} - saving unmodified")
+                    base, ext = os.path.splitext(os.path.basename(file_name))
+                    output_filename = base + "_linked" + ext
+                    output_path = os.path.join(tmp_output_dir, output_filename)
+                    atomic_replace_save(output_path, lambda temp_path: doc.save(temp_path))
+                    linked_parts.append(output_path)
+                    saved = True
                     doc.close()
                     continue
 
@@ -246,11 +280,18 @@ def main(source_file_path=None):
                 output_filename = base + "_linked" + ext
                 output_path = os.path.join(tmp_output_dir, output_filename)
                 linked_parts.append(output_path)
+                saved = True
                 atomic_replace_save(output_path, lambda temp_path: doc.save(temp_path))
                 doc.close()
                 logger.info(f"Document successfully linked: {output_path}")
             except Exception as e:
                 logger.error(f"Unexpected error processing article {file_name} - skipping. Error: {e}", exc_info=True)
+                if 'doc' in locals() and not saved:
+                    base, ext = os.path.splitext(os.path.basename(file_name))
+                    output_filename = base + "_linked" + ext
+                    output_path = os.path.join(tmp_output_dir, output_filename)
+                    atomic_replace_save(output_path, lambda temp_path: doc.save(temp_path))
+                    linked_parts.append(output_path)
                 if 'doc' in locals():
                     doc.close()
                 continue
