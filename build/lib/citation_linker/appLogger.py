@@ -7,7 +7,6 @@ import  io
 _log_buffer = None
 _bib_buffer: list = []
 _cit_buffer: list = []
-_linked_count: int = 0
 
 class JsonLineHandler(logging.StreamHandler):
     """Writes one JSON object per log record to stdout.
@@ -27,12 +26,9 @@ class JsonLineHandler(logging.StreamHandler):
     """
 
     def emit(self, record: logging.LogRecord) -> None:
-        message = record.getMessage()
-        if record.exc_info:
-            message = f"{message}\n{logging.Formatter().formatException(record.exc_info)}"
         d = {
             "level":           record.levelname,
-            "message":         message,
+            "message":         record.getMessage(),
             "article_num":     getattr(record, "article_num",     None),
             "page_in_article": getattr(record, "page_in_article", None),
             "page_in_doc":     getattr(record, "page_in_doc",     None),
@@ -49,12 +45,9 @@ class StringIoHandler(logging.StreamHandler):
         super().__init__(stream)
 
     def emit(self, record):
-        message = record.getMessage()
-        if record.exc_info:
-            message = f"{message}\n{logging.Formatter().formatException(record.exc_info)}"
         data = {
                 "level": record.levelname,
-                "message": message,
+                "message": record.getMessage(),
                 "article_num": getattr(record, "article_num", None),
                 "page_in_article": getattr(record, "page_in_article", None),
                 "page_in_doc": getattr(record, "page_in_doc", None)
@@ -177,71 +170,5 @@ def get_cit_entries() -> list:
 def reset_data_buffers() -> None:
     _bib_buffer.clear()
     _cit_buffer.clear()
-    global _linked_count
-    _linked_count = 0
 
 
-def record_link_hit() -> None:
-    """Increment the linked-citation counter by one."""
-    global _linked_count
-    _linked_count += 1
-
-
-def get_linked_count() -> int:
-    """Return total number of successfully linked citations."""
-    return _linked_count
-
-
-def get_valid_citation_count() -> int:
-    """Count citations that have a year and at least one of surname/name is not 'xxx'."""
-    count = 0
-    for e in _cit_buffer:
-        year = e.get("year", "")
-        surname = e.get("surname", "")
-        name = e.get("name", "")
-        if year and (surname != "xxx" or name != "xxx"):
-            count += 1
-    return count
-
-
-def get_valid_bib_count() -> int:
-    """Count bibliography entries with valid year (not 'yyy'), surname ≤ 3 words,
-    and at least one of surname/name is not 'yyy'."""
-    count = 0
-    for e in _bib_buffer:
-        year = e.get("year", "")
-        surname = e.get("surname", "")
-        name = e.get("name", "")
-        if (year and year != "yyy"
-                and (surname != "yyy" or name != "yyy")
-                and len(surname.split()) <= 3):
-            count += 1
-    return count
-
-
-def get_certain_citation_count() -> int:
-    """Count citations where BOTH surname and name are not 'xxx' AND there is a year."""
-    count = 0
-    for e in _cit_buffer:
-        year = e.get("year", "")
-        surname = e.get("surname", "")
-        name = e.get("name", "")
-        if year and surname != "xxx" and name != "xxx":
-            count += 1
-    return count
-
-
-def get_certain_bib_count() -> int:
-    """Count bibliography entries where BOTH surname and name are not 'yyy',
-    year is valid, and surname ≤ 3 words."""
-    count = 0
-    for e in _bib_buffer:
-        year = e.get("year", "")
-        surname = e.get("surname", "")
-        name = e.get("name", "")
-        if (year and year != "yyy"
-                and surname != "yyy"
-                and name != "yyy"
-                and len(surname.split()) <= 3):
-            count += 1
-    return count

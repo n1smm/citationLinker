@@ -1,24 +1,11 @@
 
 import  pymupdf
 import  re
-from    .utils              import years_span_parser, alternative_names_concat
-from    .configLoad         import config
-from    .appLogger          import get_logger
-from    .lineSpacing        import find_common_line_spacing, is_empty_line
-from    .modularBibUtils    import (
-                                    year_search_pattern,
-                                    year_span_pattern,
-                                    is_capitalized,
-                                    is_year_or_span,
-                                    is_separator_or_char,
-                                    find_separator_char,
-                                    is_word_boundary,
-                                    normalize_structure_type,
-                                    normalize_options,
-                                    parse_bool,
-                                    dedupe_keep_order
-                                    )
-                                    
+from    enum            import Enum 
+from    .utils          import years_span_parser, soft_year_expand, alternative_names_concat
+from    .configLoad     import config
+from    .appLogger      import get_logger
+from    .lineSpacing    import find_common_line_spacing, is_empty_line
 
 
 logger = get_logger()
@@ -64,6 +51,78 @@ bib_structures = [
  }
 """
 
+# tipi
+class Bib_types(Enum):
+    SURNAME = 0
+    NAME = 1
+    TITLE = 2
+    YEAR = 3
+    SEPARATOR = 4
+    EXTRA_CHAR = 5
+    IGNORE = 6
+    OTHER_AUTHORS = 7
+
+# globalni regexi
+year_search_pattern = re.compile(r'\d{4}[a-zA-Z]?')
+year_span_pattern = re.compile(r'\d{4} {0,2}[-–—]{1,2} {0,2}\d{4}')
+
+# validatorji
+# za preverjanje imena,priimka,naslova, all - ali morajo vse besede imeti veliko zacetnico ali samo prva)
+# malo prostora za cca 20% besed niso kapitalizirane
+def is_capitalized(text, all=False):
+    text = text.strip()
+    if not text or not text[0] or not text[0].isupper():
+        return False
+
+    if not all:
+        return text[0].isupper()
+
+    tokens = text.split()
+    upper_count = 0
+    for tok in tokens:
+        if tok.strip()[0].isupper():
+            upper_count += 1
+    if upper_count / len(tokens) >= 0.8:
+        return True
+    return False
+
+# iskanje leta ali razpona npr 1028a ali 1999-2002
+def is_year_or_span(text):
+    text = text.strip()
+    if bool(year_span_pattern.search(text)):
+        return "YEAR_SPAN"
+    elif bool(year_search_pattern.search(text)):
+        return "YEAR"
+    return "IGNORE"
+
+# preveri ce se text ujema z moznimi separatorji ali extra karakterji/ separatorji
+def is_separator_or_char(text, char_list=[","]):
+    text = text.strip()
+    for char in char_list:
+        if text == char:
+            return True
+    return False
+
+# poisci separator ali extra_char
+def find_separator_char(text, char_list=[","]):
+    text = text.strip()
+    idx = -1
+
+    for char in char_list:
+        idx = text.find(char)
+        if idx != -1:
+            return idx
+
+    return idx
+
+
+def _is_word_boundary(text, start, end):
+    """True when the match at text[start:end] is surrounded by non-word characters."""
+    before_ok = start == 0 or not (text[start - 1].isalnum() or text[start - 1] == '_')
+    after_ok  = end >= len(text) or not (text[end].isalnum() or text[end] == '_')
+    return before_ok and after_ok
+
+
 def _find_separator_in_text(text, option):
     """Find first occurrence of option in text, respecting word boundaries for word-like separators."""
     if not re.search(r'\w', option):
@@ -73,7 +132,7 @@ def _find_separator_in_text(text, option):
         found = text.find(option, pos)
         if found == -1:
             return -1
-        if is_word_boundary(text, found, found + len(option)):
+        if _is_word_boundary(text, found, found + len(option)):
             return found
         pos = found + 1
     return -1
@@ -125,7 +184,7 @@ def find_separator_outside_wrappers(text, separator_options, wrapper_options=Non
         if not stack:
             for option in separator_options:
                 if text.startswith(option, idx):
-                    if re.search(r'\w', option) and not is_word_boundary(text, idx, idx + len(option)):
+                    if re.search(r'\w', option) and not _is_word_boundary(text, idx, idx + len(option)):
                         logger.debug(
                             f"  find_separator: word-sep {repr(option)} at idx={idx} "
                             f"NOT at word boundary in {repr(text[:60])}, skipping"
@@ -163,7 +222,48 @@ def validator_selector(text, typ_element):
     else:
         return "IGNORE"
 
-# preveri ce je naslednji token pravilen glede na bib structure
+
+def _normalize_structure_type(raw_type):
+    if not isinstance(raw_type, str):
+        return ""
+    normalized = raw_type.strip().replace("-", "_").replace(" ", "_").upper()
+    aliases = {
+        "SURNAME": "SURNAME",
+        "NAME": "NAME",
+        "TITLE": "TITLE",
+        "YEAR": "YEAR",
+        "SEPARATOR": "SEPARATOR",
+        "EXTRA_CHAR": "EXTRA_CHAR",
+        "EXTRACHAR": "EXTRA_CHAR",
+        "OTHER_AUTHORS": "OTHER_AUTHORS",
+        "OTHERS": "OTHER_AUTHORS",
+        "IGNORE": "IGNORE",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _normalize_options(raw_options):
+    if isinstance(raw_options, list):
+        return [opt.strip() for opt in raw_options if isinstance(opt, str) and opt.strip()]
+    if isinstance(raw_options, str):
+        if "|" in raw_options:
+            return [opt.strip() for opt in raw_options.split("|") if opt.strip()]
+        return [opt.strip() for opt in raw_options.split(",") if opt.strip()]
+    return []
+
+
+def _parse_bool(raw_value, default=False):
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, str):
+        value = raw_value.strip().lower()
+        if value in ("true", "1", "yes"):
+            return True
+        if value in ("false", "0", "no"):
+            return False
+    return default
+
+
 def _next_expected_type_looks_valid(text, remaining_struct):
     probe = text.strip()
     if not probe:
@@ -281,7 +381,7 @@ def _extract_other_authors_segment(curr_text, other_elem, separator_options, wra
     if not expected_types_ahead:
         return text, ""
 
-    other_options = normalize_options(other_elem.get("options") or other_elem.get("OPTIONS") or ["and", "in", ","])
+    other_options = _normalize_options(other_elem.get("options") or other_elem.get("OPTIONS") or ["and", "in", ","])
     other_options_lc = {opt.lower() for opt in other_options}
     sep_options_lc = {opt.lower() for opt in (separator_options or [])}
     shared_separator = bool(other_options_lc & sep_options_lc)
@@ -317,8 +417,18 @@ def _extract_other_authors_segment(curr_text, other_elem, separator_options, wra
     return text[:split_idx].strip(), text[split_idx + len(used_option):].strip()
 
 
+def _dedupe_keep_order(values):
+    seen = set()
+    out = []
+    for value in values:
+        normalized = value.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        out.append(normalized)
+    return out
 
-# tokenizira pravilno avtor tokne
+
 def _extract_other_author_values(text, options=None):
     if not text:
         return []
@@ -326,7 +436,7 @@ def _extract_other_author_values(text, options=None):
     if not work_text:
         return []
 
-    options = normalize_options(options or ["and", "in", ","])
+    options = _normalize_options(options or ["and", "in", ","])
     punctuation_separators = [opt for opt in options if re.fullmatch(r"[^\w\s]+", opt or "")]
     word_separators = [re.escape(opt) for opt in options if opt and re.search(r"\w", opt)]
 
@@ -355,7 +465,7 @@ def _extract_other_author_values(text, options=None):
             token = token.strip(" \t\n\r,;:.()[]{}")
             if token and token[0].isupper():
                 values.append(token)
-    return dedupe_keep_order(values)
+    return _dedupe_keep_order(values)
 
 
 def normalize_bib_structures(raw_bib_structures):
@@ -379,14 +489,14 @@ def normalize_bib_structures(raw_bib_structures):
         normalized_struct = []
         for raw_elem in raw_struct:
             if isinstance(raw_elem, dict):
-                typ = normalize_structure_type(raw_elem.get("type") or raw_elem.get("TYPE"))
+                typ = _normalize_structure_type(raw_elem.get("type") or raw_elem.get("TYPE"))
                 if not typ:
                     continue
                 elem = {"type": typ}
                 if "required" in raw_elem or "REQUIRED" in raw_elem:
-                    elem["required"] = parse_bool(raw_elem.get("required") if "required" in raw_elem else raw_elem.get("REQUIRED"), True)
+                    elem["required"] = _parse_bool(raw_elem.get("required") if "required" in raw_elem else raw_elem.get("REQUIRED"), True)
                 if typ in ("SEPARATOR", "EXTRA_CHAR", "OTHER_AUTHORS"):
-                    options = normalize_options(raw_elem.get("options") or raw_elem.get("OPTIONS"))
+                    options = _normalize_options(raw_elem.get("options") or raw_elem.get("OPTIONS"))
                     if typ == "SEPARATOR" and not options:
                         options = [","]
                     if typ == "OTHER_AUTHORS" and not options:
@@ -410,7 +520,7 @@ def normalize_bib_structures(raw_bib_structures):
 
             parts = [part.strip() for part in token.split(":") if part.strip()]
             raw_type = parts[0] if parts else ""
-            typ = normalize_structure_type(raw_type)
+            typ = _normalize_structure_type(raw_type)
             if not typ:
                 continue
 
@@ -423,14 +533,14 @@ def normalize_bib_structures(raw_bib_structures):
                 key, value = [part.strip() for part in meta.split("=", 1)]
                 key_upper = key.upper()
                 if key_upper == "REQUIRED":
-                    elem["required"] = parse_bool(value, True)
+                    elem["required"] = _parse_bool(value, True)
                 elif key_upper == "OPTIONS":
-                    elem["options"] = normalize_options(value)
+                    elem["options"] = _normalize_options(value)
 
             if typ in ("SEPARATOR", "EXTRA_CHAR", "OTHER_AUTHORS"):
                 options = elem.get("options", [])
                 if not options and legacy_options:
-                    options = normalize_options("|".join(legacy_options))
+                    options = _normalize_options("|".join(legacy_options))
                 if typ == "SEPARATOR" and not options:
                     options = [","]
                 if typ == "OTHER_AUTHORS" and not options:
@@ -530,13 +640,7 @@ def content_token_sorting(text, typ_elements, n=1):
                 typ = (elem.get("TYPE") or "").upper()
 
             if typ == "EXTRA_CHAR":
-                # normalize_bib_structures stores "options" in lowercase; uppercase
-                # OPTIONS was a typo that always fell back to [""], causing find("")
-                # to return 0 and silently strip the first char of curr_text.
-                extra_options = elem.get("options") or elem.get("OPTIONS") or []
-                if not extra_options:
-                    continue
-                char_idx = find_separator_char(curr_text, extra_options)
+                char_idx = find_separator_char(curr_text, elem.get("OPTIONS", [""]))
                 if char_idx == -1:
                     continue
                 # curr_text = curr_text[char_idx:]
@@ -623,13 +727,10 @@ def create_bib_entry(tokens):
             year_token = year_match.group() if year_match else (text or "yyy")
             bib_entry["year"] = year_token
             bib_entry["years"].append(year_token)
+        # TODO dodaj se year span v years
         elif typ == "YEAR_SPAN":
             span_match = year_span_pattern.search(text or "")
-            span_token = span_match.group() if span_match else (text or "yyy")
-            bib_entry["year_span"] = span_token
-            # razsiri leta iz razpona (mora biti zmeraj zapolnjen years da debugUtils ne crasha)
-            if span_token and span_token != "yyy":
-                bib_entry["years"] = years_span_parser(span_token, bib_entry["years"])
+            bib_entry["year_span"] = span_match.group() if span_match else (text or "yyy")
         elif typ in ("OTHERS", "OTHER_AUTHORS"):
             other_options = tkn.get("options") or []
             if typ == "OTHER_AUTHORS":
@@ -637,12 +738,9 @@ def create_bib_entry(tokens):
             elif text:
                 bib_entry["others"].append(text)
         # Add more types as needed
-    bib_entry["others"] = dedupe_keep_order(bib_entry["others"])
+    bib_entry["others"] = _dedupe_keep_order(bib_entry["others"])
     if not bib_entry["others"]:
         bib_entry["others"] = ["yyy"]
-    # zagotovi da years nikoli ni prazen (debugUtils dostopa years[0] brez guarda)
-    if not bib_entry["years"]:
-        bib_entry["years"] = ["yyy"]
     return bib_entry
 
 
@@ -674,9 +772,6 @@ def _is_entry_valid(entry_result):
 
 # preverjanje in tokeniziranje raw text za mozen bib entry
 def tokenize_author_entry(line_text):
-    # Poenotimo presledke tudi tu, da neposredni klici (preview, testi) delujejo
-    # enako kot pot prek extract_authors_modular — glej opombo pri branju vrstic.
-    line_text = re.sub(r"\s", " ", line_text)
     valid_structures = normalize_bib_structures(config.get("BIB_STRUCTURE", ""))
     if not valid_structures:
         logger.debug(f"tokenize_author_entry: no valid structures configured")
@@ -801,27 +896,7 @@ def extract_authors_modular(doc, page_idx, delimiter, ctx=None, article_start_pa
         for block in page.get_text("dict")["blocks"]:
             if "lines" in block:
                 for line in block["lines"]:
-                    # Span-e sestavimo brez vrinjenega presledka: PyMuPDF pogosto
-                    # razbije eno besedo na več sosednjih span-ov (npr. "Viri" ->
-                    # "V" + "iri"), dejanske presledke pa vrne kot lastne span-e.
-                    # " ".join bi zato vrinil lažne presledke sredi besed ("V iri").
-                    # Presledek vstavimo le ob dejanski vodoravni vrzeli med span-i
-                    # (enako kot to naredi get_text("text") interno).
-                    line_text = ""
-                    prev_x1 = None
-                    for span in line["spans"]:
-                        span_text = span["text"]
-                        x0, x1 = span["bbox"][0], span["bbox"][2]
-                        if (prev_x1 is not None
-                                and x0 - prev_x1 > 0.2 * span.get("size", 10)
-                                and not line_text.endswith(" ")
-                                and not span_text.startswith(" ")):
-                            line_text += " "
-                        line_text += span_text
-                        prev_x1 = x1
-                    # Poenotimo vse oblike presledka (\xa0, ozki NBSP ...) v ASCII
-                    # presledek, da separator " " deluje tudi pri slovarskih PDF-jih.
-                    line_text = re.sub(r"\s", " ", line_text)
+                    line_text = " ".join([span["text"] for span in line["spans"]])
                     line_rect = pymupdf.Rect(line["bbox"])
                     all_lines_buffer.append({
                         "text": line_text,
