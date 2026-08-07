@@ -72,7 +72,7 @@ def config_load(config_path):
     if  'ALTERNATIVE_BIB' not in config or not config['ALTERNATIVE_BIB']:
         config['ALTERNATIVE_BIB'] = ['False']
     if 'LEGACY' not in config or not config['LEGACY']:
-        config['LEGACY'] = ['True']
+        config['LEGACY'] = ['False']
     if config.get("UI", ["False"])[0] == "True":
         from    citation_linker.appLogger import get_logger
         logger = get_logger()
