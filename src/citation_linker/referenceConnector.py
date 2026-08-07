@@ -2,7 +2,7 @@ import  pymupdf
 import  re
 from    .configLoad import config
 from    .utils import year_span_match
-from    .appLogger import get_logger
+from    .appLogger import get_logger, record_link_hit
 
 logger = get_logger()
 
@@ -167,6 +167,7 @@ def reference_connector(authors_info, references_info, doc, ctx=None, article_st
                     if is_author_match(ref, author):
                         nrf, last_link = process_reference_match(ref, author, doc, config, ctx, article_start_page)
                         num_ref_found += nrf
+                        record_link_hit()
                         logger.debug(f"Matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
                         # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
                         break
@@ -177,6 +178,7 @@ def reference_connector(authors_info, references_info, doc, ctx=None, article_st
                         if soft_year_match(author, ref):
                             nrf, last_link = process_reference_match(ref, author, doc, config, ctx, article_start_page)
                             num_ref_found += nrf
+                            record_link_hit()
                             logger.debug(f"Soft-matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
                             # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
                             break
@@ -189,6 +191,7 @@ def reference_connector(authors_info, references_info, doc, ctx=None, article_st
             ref_rects = (ref["position"] if isinstance(ref["position"], list)
                              else [ref["position"]])
             num_ref_found += 1
+            record_link_hit()
             curr_page = int(ref["page"])
             page = doc[curr_page]
             logger.debug(f"Special case '{ref['text']}' on page {ref['page']} linking to page {last_link['page']}, point: {last_link['to']}")
