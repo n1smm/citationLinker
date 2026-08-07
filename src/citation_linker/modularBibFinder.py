@@ -522,6 +522,8 @@ def content_token_sorting(text, typ_elements, n=1):
 
     elif n > 1:
         logger.debug(f"  content_token_sorting n={n}: text={repr(curr_text[:40])}, types={[e.get('type') for e in typ_elements]}")
+
+        # Strip EXTRA_CHARs first (they are removed from both text and typ_elements)
         for elem in typ_elements[:]:
             if len(curr_text) < 1:
                 return tokens
@@ -530,27 +532,65 @@ def content_token_sorting(text, typ_elements, n=1):
                 typ = (elem.get("TYPE") or "").upper()
 
             if typ == "EXTRA_CHAR":
-                # normalize_bib_structures stores "options" in lowercase; uppercase
-                # OPTIONS was a typo that always fell back to [""], causing find("")
-                # to return 0 and silently strip the first char of curr_text.
                 extra_options = elem.get("options") or elem.get("OPTIONS") or []
                 if not extra_options:
                     continue
                 char_idx = find_separator_char(curr_text, extra_options)
                 if char_idx == -1:
                     continue
-                # curr_text = curr_text[char_idx:]
                 if char_idx + 1 < len(curr_text):
-                    curr_text =  curr_text[:char_idx] + curr_text[char_idx+1:]
+                    curr_text = curr_text[:char_idx] + curr_text[char_idx+1:]
                     typ_elements.remove(elem)
                 else:
                     curr_text = ""
                     typ_elements.remove(elem)
-        if curr_text and curr_text[0] and len(typ_elements) == 1:
+
+        if not curr_text or not typ_elements:
+            return tokens
+
+        # Find the YEAR element position for implicit-separator splitting
+        year_idx = None
+        for i, elem in enumerate(typ_elements):
+            t = (elem.get("type") or elem.get("TYPE") or "").upper()
+            if t == "YEAR":
+                year_idx = i
+                break
+
+        if year_idx is not None:
+            year_match = year_search_pattern.search(curr_text)
+            if year_match:
+                before = curr_text[:year_match.start()].strip(" \t\n\r,;:.()")
+                year_text = year_match.group()
+                after = curr_text[year_match.end():].strip(" \t\n\r,;:.()")
+
+                logger.debug(f"  content_token_sorting YEAR-split: before={repr(before[:30])}, year={year_text}, after={repr(after[:30])}")
+
+                # Process elements before YEAR
+                pre_elems = typ_elements[:year_idx]
+                if before and pre_elems:
+                    tokens += content_token_sorting(before, pre_elems, len(pre_elems))
+                elif before and not pre_elems:
+                    # text exists before year but no typed elements — assign as best-effort
+                    tkn_type = validator_selector(before, {"type": "NAME"})
+                    tokens.append({"text": before, "type": tkn_type})
+
+                # YEAR token itself
+                tokens.append({"text": year_text, "type": "YEAR"})
+
+                # Process elements after YEAR
+                post_elems = typ_elements[year_idx + 1:]
+                if after and post_elems:
+                    tokens += content_token_sorting(after, post_elems, len(post_elems))
+                elif after and not post_elems:
+                    tkn_type = validator_selector(after, {"type": "TITLE"})
+                    tokens.append({"text": after, "type": tkn_type})
+
+                return tokens
+
+        # No YEAR element (or year not found in text) — fall back to 1/2-element logic
+        if curr_text and len(typ_elements) == 1:
             tokens += content_token_sorting(curr_text, typ_elements, len(typ_elements))
         elif curr_text and len(typ_elements) == 2:
-            # NAME/SURNAME/TITLE/OTHER_AUTHORS + YEAR pair left after stripping EXTRA_CHARs:
-            # find the year in the remaining text and split around it
             type_pairs = [(e, (e.get("type") or e.get("TYPE") or "").upper()) for e in typ_elements]
             year_elem = next((e for e, t in type_pairs if t == "YEAR"), None)
             name_elem = next((e for e, t in type_pairs if t in ("NAME", "SURNAME", "TITLE", "OTHER_AUTHORS")), None)
