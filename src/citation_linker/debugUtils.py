@@ -20,13 +20,13 @@ def print_references_info(references_info, ctx=None, article_start_page=0):
 
         logger.debug(f"Reference - year: {ref.get('year', '')}, surname: {ref.get('surname', '')}, name: {ref.get('name', '')}")
         logger.debug(f"  text: {ref.get('text', '')}, position: {ref.get('position', '')}, page: {ref.get('page', '')}")
-        if ref["others"] and ref["others"][0] != "xxx":
+        if ref.get("others") and ref["others"][0] != "xxx":
             for other in ref["others"]:
                 logger.debug(f"  other: {other}")
-        if ref["years"] and ref["years"][0] != "xxx":
+        if ref.get("years") and ref["years"][0] != "xxx":
             for year in ref["years"]:
                 logger.debug(f"  year: {year}")
-            logger.debug(f"  span: {ref['year_span']}")
+            logger.debug(f"  span: {ref.get('year_span', '')}")
 
         record_cit_entry({
             "year":    ref.get("year", ""),

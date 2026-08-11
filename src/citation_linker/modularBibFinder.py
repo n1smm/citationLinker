@@ -535,11 +535,12 @@ def content_token_sorting(text, typ_elements, n=1):
                 extra_options = elem.get("options") or elem.get("OPTIONS") or []
                 if not extra_options:
                     continue
-                char_idx = find_separator_char(curr_text, extra_options)
+                char_idx, matched_option = find_separator_outside_wrappers(curr_text, extra_options)
                 if char_idx == -1:
                     continue
-                if char_idx + 1 < len(curr_text):
-                    curr_text = curr_text[:char_idx] + curr_text[char_idx+1:]
+                option_len = len(matched_option)
+                if char_idx + option_len < len(curr_text):
+                    curr_text = curr_text[:char_idx] + curr_text[char_idx + option_len:]
                     typ_elements.remove(elem)
                 else:
                     curr_text = ""

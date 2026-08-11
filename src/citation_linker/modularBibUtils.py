@@ -31,7 +31,8 @@ def is_capitalized(text, all=False):
     tokens = text.split()
     upper_count = 0
     for tok in tokens:
-        if tok.strip()[0].isupper():
+        stripped = tok.strip()
+        if stripped and stripped[0].isupper():
             upper_count += 1
     if upper_count / len(tokens) >= 0.8:
         return True

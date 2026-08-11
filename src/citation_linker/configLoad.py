@@ -38,11 +38,23 @@ def config_load(config_path):
                         item = item.strip().replace('"', '')
                         offset = 0
                         if "OFFSET" in config and config["OFFSET"] and config["OFFSET"][0]:
-                            if "+" in config["OFFSET"][0]:
-                                offset = int(config["OFFSET"][0][1:])
-                            elif "-" in config["OFFSET"][0]:
-                                offset = int(config["OFFSET"][0])
-                        numbers = tuple(map(lambda x: int(x) -1 + offset, item.split(':')))
+                            try:
+                                if "+" in config["OFFSET"][0]:
+                                    offset = int(config["OFFSET"][0][1:])
+                                elif "-" in config["OFFSET"][0]:
+                                    offset = int(config["OFFSET"][0])
+                            except (ValueError, TypeError):
+                                print(f"Warning: Invalid OFFSET value '{config['OFFSET'][0]}' — using 0")
+                        # Validate ARTICLE_BREAKS entry format (N:N)
+                        parts = item.split(':')
+                        if len(parts) != 2:
+                            print(f"Warning: Skipping malformed ARTICLE_BREAKS entry '{item}' — expected 'start:end'")
+                            continue
+                        try:
+                            numbers = tuple(int(x) - 1 + offset for x in parts)
+                        except (ValueError, TypeError):
+                            print(f"Warning: Skipping non-numeric ARTICLE_BREAKS entry '{item}'")
+                            continue
                         tuples.append(numbers)
                     config[key] = {i: t for i, t in enumerate(tuples)}
                 elif "BIB_STRUCTURE" in line:

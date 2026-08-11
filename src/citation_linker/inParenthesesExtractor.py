@@ -40,7 +40,7 @@ def reference_checker(inbound_text, temp_refs):
     if not any(year_search_pattern.search(token.strip('.,;:')) for token in in_tokens):
         return False
     #glej za besede z veliko zacetnico v oklepaju
-    if any(token[0].isupper() for token in in_tokens):
+    if any(token and token[0].isupper() for token in in_tokens):
         name_inside = True
         ref_text = unite_tokens_to_text(inbound_text, True, 0)
         temp_refs.append({"text": ref_text, "outside_name": False, "check_prev": False})

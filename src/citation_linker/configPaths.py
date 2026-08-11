@@ -130,20 +130,22 @@ def resolve_dir_paths(dirs=None):
     input = ""
     output = ""
 
-    if dirs and (dirs["input"] or dirs["output"]):
+    if dirs and (dirs.get("input") or dirs.get("output")):
         dir_paths = {}
-        if dirs["input"]:
-            input = Path(dirs["input"]).expanduser().resolve()
-        if dirs["output"]:
-            output = Path(dirs["output"]).expanduser().resolve()
-        if input and input.exists():
+        input_val = dirs.get("input", "")
+        output_val = dirs.get("output", "")
+        if input_val:
+            input = Path(input_val).expanduser().resolve()
+        if output_val:
+            output = Path(output_val).expanduser().resolve()
+        if input_val and input.exists():
             active_dir(True).write_text(str(input), encoding='utf-8')
             dir_paths["input"] = input
-        if output and output.exists():
+        if output_val and output.exists():
             active_dir(False).write_text(str(output), encoding='utf-8')
             dir_paths["output"] = output
-        else:
-            raise FileNotFoundError(f"path for input and/or output dirs don't exist, in: {input}, out: {output}")
+        if not dir_paths:
+            raise FileNotFoundError(f"path for input and/or output dirs don't exist, in: {input_val}, out: {output_val}")
         return dir_paths
 
     active_dirs = {}

@@ -110,8 +110,11 @@ def process_reference_match(ref, author, doc, config, ctx=None, article_start_pa
     
     num_ref_found = 1
     curr_page = int(ref["page"])
-    ref_rects = (ref["position"] if isinstance(ref["position"], list)
-                 else [ref["position"]])
+    raw_position = ref.get("position")
+    if not raw_position:
+        logger.warning(f"process_reference_match: ref has no position — skipping link for {ref.get('surname', '?')} {ref.get('year', '?')}")
+        return 0, last_link
+    ref_rects = raw_position if isinstance(raw_position, list) else [raw_position]
     author_point = author["position"].tl
     page = doc[curr_page]
     words = page.get_text("words")
@@ -188,8 +191,11 @@ def reference_connector(authors_info, references_info, doc, ctx=None, article_st
 
         # ce gre za posebni primer, kjer se navajanje navezuje na prejsnjo delo (npr. "nav. d.")
         if ref["surname"] == "special_case" and last_link:
-            ref_rects = (ref["position"] if isinstance(ref["position"], list)
-                             else [ref["position"]])
+            raw_position = ref.get("position")
+            if not raw_position:
+                logger.warning(f"special_case ref has no position — skipping: '{ref.get('text', '?')}'")
+                continue
+            ref_rects = raw_position if isinstance(raw_position, list) else [raw_position]
             num_ref_found += 1
             record_link_hit()
             curr_page = int(ref["page"])

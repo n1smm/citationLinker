@@ -106,17 +106,22 @@ def split_into_parts(doc, ranges, tmp_dir, src_path):
 def merge_linked_parts(linked_parts, file_name, output_dir):
     logger = get_logger()
     final = pymupdf.open()
+    merged_count = 0
     for part in linked_parts:
+        if not os.path.exists(part):
+            logger.warning(f"Skipping missing part file during merge: {part}")
+            continue
         part_doc = pymupdf.open(part)
         final.insert_pdf(part_doc)
         part_doc.close()
+        merged_count += 1
 
     base, ext = os.path.splitext(os.path.basename(file_name))
     output_filename = base + "_linked" + ext
     output_path = os.path.join(output_dir, output_filename)
     atomic_replace_save(output_path, lambda temp_path: final.save(temp_path))
     final.close()
-    logger.info(f"Saved merged final file: {output_path}")
+    logger.info(f"Saved merged final file ({merged_count}/{len(linked_parts)} parts): {output_path}")
 
 def args_parser():
     parser = argparse.ArgumentParser(description="Link citations in a multi-article PDF.")
