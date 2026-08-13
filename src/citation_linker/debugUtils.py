@@ -28,6 +28,14 @@ def print_references_info(references_info, ctx=None, article_start_page=0):
                 logger.debug(f"  year: {year}")
             logger.debug(f"  span: {ref.get('year_span', '')}")
 
+        pos = ref.get("position")
+        rect_data = None
+        if pos is not None:
+            if isinstance(pos, list):
+                rect_data = [[r.x0, r.y0, r.x1, r.y1] for r in pos if hasattr(r, 'x0')]
+            elif hasattr(pos, 'x0'):
+                rect_data = [pos.x0, pos.y0, pos.x1, pos.y1]
+
         record_cit_entry({
             "year":    ref.get("year", ""),
             "surname": ref.get("surname", ""),
@@ -35,6 +43,9 @@ def print_references_info(references_info, ctx=None, article_start_page=0):
             "others":  ref.get("others", []),
             "text":    ref.get("text", ""),
             "page":    ref.get("page", ""),
+            "page_in_doc": ctx.page_in_doc if ctx else None,
+            "rect":    rect_data,
+            "linked":  False,
         })
 
     # resetiraj kontekst na stanje na nivoju clanka
@@ -66,6 +77,11 @@ def print_bibliography_info(lines_info, ctx=None, article_start_page=0):
         if "yyy" not in years_list[0] and not ("yyy" in entry['surname'] and "yyy" in entry['name']):
             logger.debug(f"  year_span: {entry['year_span']}")
 
+        bib_pos = entry.get("position")
+        bib_rect = None
+        if bib_pos is not None and hasattr(bib_pos, 'x0'):
+            bib_rect = [bib_pos.x0, bib_pos.y0, bib_pos.x1, bib_pos.y1]
+
         record_bib_entry({
             "surname": entry.get("surname", ""),
             "name":    entry.get("name", ""),
@@ -73,6 +89,9 @@ def print_bibliography_info(lines_info, ctx=None, article_start_page=0):
             "others":  entry.get("others", []),
             "text":    entry.get("text", ""),
             "page":    entry.get("page", ""),
+            "page_in_doc": ctx.page_in_doc if ctx else None,
+            "rect":    bib_rect,
+            "linked":  False,
         })
 
     page_counts = Counter(line["page"] for line in lines_info if "surname" in line and line["surname"])
