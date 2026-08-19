@@ -1,6 +1,6 @@
 [project]
 name = "citation-linker"
-version = "0.1.0"
+version = "0.1.1"
 description = "CLI tool for citation linking"
 authors = [{name = "n1smm", email = "nomail@please.com"}]
 requires-python = ">=3.12"
