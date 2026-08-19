@@ -8,6 +8,7 @@ _log_buffer = None
 _bib_buffer: list = []
 _cit_buffer: list = []
 _linked_count: int = 0
+_linked_pairs: list = []  # (cit_id, bib_id) tuples for post-link cross-reference
 
 class JsonLineHandler(logging.StreamHandler):
     """Writes one JSON object per log record to stdout.
@@ -177,14 +178,53 @@ def get_cit_entries() -> list:
 def reset_data_buffers() -> None:
     _bib_buffer.clear()
     _cit_buffer.clear()
-    global _linked_count
+    global _linked_count, _linked_pairs
     _linked_count = 0
+    _linked_pairs.clear()
 
 
 def record_link_hit() -> None:
     """Increment the linked-citation counter by one."""
     global _linked_count
     _linked_count += 1
+
+
+def record_link_match(cit_id: tuple, bib_id: tuple) -> None:
+    """Record that a specific citation was matched to a specific bibliography entry.
+
+    cit_id / bib_id are (surname, year, page) tuples used to cross-reference
+    the buffers after linking completes.
+    """
+    _linked_pairs.append((cit_id, bib_id))
+
+
+def _entry_matches_id(entry: dict, entry_id: tuple) -> bool:
+    """Check whether a buffer entry matches an identifier tuple (surname, year, page)."""
+    surname, year, page = entry_id
+    return (
+        str(entry.get("surname", "")) == str(surname)
+        and str(entry.get("year", "")) == str(year)
+        and str(entry.get("page", "")) == str(page)
+    )
+
+
+def mark_linked_entries() -> None:
+    """After linking finishes, cross-reference the buffers against _linked_pairs
+    and set linked=True on every entry that participated in a match."""
+    cit_ids = {pair[0] for pair in _linked_pairs}
+    bib_ids = {pair[1] for pair in _linked_pairs}
+
+    for entry in _bib_buffer:
+        for bib_id in bib_ids:
+            if _entry_matches_id(entry, bib_id):
+                entry["linked"] = True
+                break
+
+    for entry in _cit_buffer:
+        for cit_id in cit_ids:
+            if _entry_matches_id(entry, cit_id):
+                entry["linked"] = True
+                break
 
 
 def get_linked_count() -> int:

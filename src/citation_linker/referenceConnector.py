@@ -2,7 +2,7 @@ import  pymupdf
 import  re
 from    .configLoad import config
 from    .utils import year_span_match
-from    .appLogger import get_logger, record_link_hit
+from    .appLogger import get_logger, record_link_hit, record_link_match
 
 logger = get_logger()
 
@@ -110,8 +110,11 @@ def process_reference_match(ref, author, doc, config, ctx=None, article_start_pa
     
     num_ref_found = 1
     curr_page = int(ref["page"])
-    ref_rects = (ref["position"] if isinstance(ref["position"], list)
-                 else [ref["position"]])
+    raw_position = ref.get("position")
+    if not raw_position:
+        logger.warning(f"process_reference_match: ref has no position — skipping link for {ref.get('surname', '?')} {ref.get('year', '?')}")
+        return 0, last_link
+    ref_rects = raw_position if isinstance(raw_position, list) else [raw_position]
     author_point = author["position"].tl
     page = doc[curr_page]
     words = page.get_text("words")
@@ -147,6 +150,7 @@ def process_reference_match(ref, author, doc, config, ctx=None, article_start_pa
 def reference_connector(authors_info, references_info, doc, ctx=None, article_start_page=0):
     last_link = None
     num_ref_found = 0
+    last_bib_id = None
     for ref  in references_info:
         # posodobi kontekst glede na stran reference (lokalna 0-based stran)
         if ctx:
@@ -168,6 +172,11 @@ def reference_connector(authors_info, references_info, doc, ctx=None, article_st
                         nrf, last_link = process_reference_match(ref, author, doc, config, ctx, article_start_page)
                         num_ref_found += nrf
                         record_link_hit()
+                        record_link_match(
+                            (ref.get("surname", ""), ref.get("year", ""), str(ref.get("page", ""))),
+                            (author.get("surname", ""), author.get("year", ""), str(author.get("page", ""))),
+                        )
+                        last_bib_id = (author.get("surname", ""), author.get("year", ""), str(author.get("page", "")))
                         logger.debug(f"Matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
                         # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
                         break
@@ -179,6 +188,11 @@ def reference_connector(authors_info, references_info, doc, ctx=None, article_st
                             nrf, last_link = process_reference_match(ref, author, doc, config, ctx, article_start_page)
                             num_ref_found += nrf
                             record_link_hit()
+                            record_link_match(
+                                (ref.get("surname", ""), ref.get("year", ""), str(ref.get("page", ""))),
+                                (author.get("surname", ""), author.get("year", ""), str(author.get("page", ""))),
+                            )
+                            last_bib_id = (author.get("surname", ""), author.get("year", ""), str(author.get("page", "")))
                             logger.debug(f"Soft-matched {ref['surname']} {ref['year']} to author {author['surname']} on page {author['page']}")
                             # break po najdenem ujemanju, da ne nadaljuje in prepise last_link
                             break
@@ -188,10 +202,17 @@ def reference_connector(authors_info, references_info, doc, ctx=None, article_st
 
         # ce gre za posebni primer, kjer se navajanje navezuje na prejsnjo delo (npr. "nav. d.")
         if ref["surname"] == "special_case" and last_link:
-            ref_rects = (ref["position"] if isinstance(ref["position"], list)
-                             else [ref["position"]])
+            raw_position = ref.get("position")
+            if not raw_position:
+                logger.warning(f"special_case ref has no position — skipping: '{ref.get('text', '?')}'")
+                continue
+            ref_rects = raw_position if isinstance(raw_position, list) else [raw_position]
             num_ref_found += 1
             record_link_hit()
+            record_link_match(
+                (ref.get("surname", ""), ref.get("year", ""), str(ref.get("page", ""))),
+                last_bib_id or ("special_case", "0", ""),
+            )
             curr_page = int(ref["page"])
             page = doc[curr_page]
             logger.debug(f"Special case '{ref['text']}' on page {ref['page']} linking to page {last_link['page']}, point: {last_link['to']}")

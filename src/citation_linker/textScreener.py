@@ -38,12 +38,12 @@ def tokenize(author_token):
 # Poišči indeks letnice ali letničnega razpona v tokenih
 def find_year_index(tokens, year_matches, year_span_matches):
     if year_matches and not year_span_matches:
-        return next(i for i, tok in enumerate(tokens) if year_matches[0] in tok)
+        return next((i for i, tok in enumerate(tokens) if year_matches[0] in tok), None)
     elif year_span_matches:
         idx = next((i for i, tok in enumerate(tokens) if year_span_matches[0] in tok), None)
         if idx is not None:
             return idx
-        return next((i for i, tok in enumerate(tokens) if year_matches[0] in tok))
+        return next((i for i, tok in enumerate(tokens) if year_matches[0] in tok), None)
     return None
 
 # Poišči priimek in ime pred letnico
